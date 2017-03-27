@@ -39,6 +39,7 @@ define([
         '../Scene/Primitive',
         './GlobeSurfaceTile',
         './ImageryLayer',
+        './OrthographicFrustum',
         './QuadtreeTileLoadState',
         './SceneMode',
         './ShadowMode'
@@ -82,6 +83,7 @@ define([
         Primitive,
         GlobeSurfaceTile,
         ImageryLayer,
+        OrthographicFrustum,
         QuadtreeTileLoadState,
         SceneMode,
         ShadowMode) {
@@ -502,7 +504,8 @@ define([
             return Visibility.NONE;
         }
 
-        if (frameState.mode === SceneMode.SCENE3D) {
+        var ortho3D = frameState.mode === SceneMode.SCENE3D && frameState.camera.frustum instanceof OrthographicFrustum;
+        if (frameState.mode === SceneMode.SCENE3D && !ortho3D) {
             var occludeePointInScaledSpace = surfaceTile.occludeePointInScaledSpace;
             if (!defined(occludeePointInScaledSpace)) {
                 return intersection;
@@ -567,8 +570,8 @@ define([
      */
     GlobeSurfaceTileProvider.prototype.computeDistanceToTile = function(tile, frameState) {
         var surfaceTile = tile.data;
-        var tileBoundingBox = surfaceTile.tileBoundingBox;
-        return tileBoundingBox.distanceToCamera(frameState);
+        var tileBoundingRegion = surfaceTile.tileBoundingRegion;
+        return tileBoundingRegion.distanceToCamera(frameState);
     };
 
     /**

@@ -28,6 +28,7 @@ define([
         '../Core/PinBuilder',
         '../Core/PolygonHierarchy',
         '../Core/Rectangle',
+        '../Core/RequestScheduler',
         '../Core/RuntimeError',
         '../Core/TimeInterval',
         '../Core/TimeIntervalCollection',
@@ -87,6 +88,7 @@ define([
         PinBuilder,
         PolygonHierarchy,
         Rectangle,
+        RequestScheduler,
         RuntimeError,
         TimeInterval,
         TimeIntervalCollection,
@@ -876,7 +878,7 @@ define([
 
     //Asynchronously processes an external style file.
     function processExternalStyles(dataSource, uri, styleCollection) {
-        return loadXML(proxyUrl(uri, dataSource._proxy)).then(function(styleKml) {
+        return when(RequestScheduler.request(proxyUrl(uri, dataSource._proxy), loadXML), function(styleKml) {
             return processStyles(dataSource, styleKml, styleCollection, uri, true);
         });
     }
@@ -2176,7 +2178,7 @@ define([
 
         var promise = data;
         if (typeof data === 'string') {
-            promise = loadBlob(proxyUrl(data, dataSource._proxy));
+            promise = RequestScheduler.request(proxyUrl(data, dataSource._proxy), loadBlob);
             sourceUri = defaultValue(sourceUri, data);
         }
 
@@ -2257,11 +2259,12 @@ define([
      *
      * @example
      * var viewer = new Cesium.Viewer('cesiumContainer');
-     * viewer.dataSources.add(Cesium.KmlDataSource.load('../../SampleData/facilities.kmz'),
+     * viewer.dataSources.add(Cesium.KmlDataSource.load('../../SampleData/facilities.kmz',
      *      {
-     *          camera: viewer.scene.camera,
-     *          canvas: viewer.scene.canvas
-     *      });
+     *           camera: viewer.scene.camera,
+     *           canvas: viewer.scene.canvas
+     *      })
+     * );
      */
     function KmlDataSource(options) {
         options = defaultValue(options, {});
