@@ -150,26 +150,30 @@ define([
         var nextColor = new Uint8Array(4);
         var prevColor = new Uint8Array(4);
 
-        function setPalette(index, r, g, b, a) {
-            a = (typeof(a) !== 'undefined' ? a : 255);
-
+        function setPalette(color) {
             var i = palette.length;
+            var index = color[0];
 
             palette[i] = [];
             palette[i].takeoff = [];
             palette[i].approach = [];
             palette[i].value = parseFloat(index);
 
-            palette[i].takeoff.red = r;
-            palette[i].takeoff.green = g;
-            palette[i].takeoff.blue = b;
-            palette[i].takeoff.alpha = a;
+            palette[i].takeoff.red = color[1][0];
+            palette[i].takeoff.green = color[1][1];
+            palette[i].takeoff.blue = color[1][2];
+            palette[i].takeoff.alpha = (typeof(color[1][3]) !== 'undefined' ? color[1][3] : 255);
 
-            if(i > 0) {
-                palette[i].approach.red = r;
-                palette[i].approach.green = g;
-                palette[i].approach.blue = b;
-                palette[i].approach.alpha = a;
+            if(i > 0 && color[1].length <= 4) {
+                palette[i].approach.red = color[1][0];
+                palette[i].approach.green = color[1][1];
+                palette[i].approach.blue = color[1][2];
+                palette[i].approach.alpha = (typeof(color[1][3]) !== 'undefined' ? color[1][3] : 255);
+            } else if(i > 0 && color[1].length > 4) {
+                palette[i].approach.red = color[1][4];
+                palette[i].approach.green = color[1][5];
+                palette[i].approach.blue = color[1][6];
+                palette[i].approach.alpha = (typeof(color[1][7]) !== 'undefined' ? color[1][7] : 255);;
             }
 
             if(index < min || min === null) {
@@ -183,7 +187,7 @@ define([
 
         var i;
         for(i = 0; i < colors.length; i++) {
-            setPalette(colors[i][0], colors[i][1][0], colors[i][1][1], colors[i][1][2], colors[i][1][3]);
+            setPalette(colors[i]);
         }
 
         diff = Math.abs(max - min);
