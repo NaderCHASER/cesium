@@ -42,9 +42,8 @@
         'application/json' : ['czml', 'json', 'geojson', 'topojson'],
         'image/crn' : ['crn'],
         'image/ktx' : ['ktx'],
-        'model/vnd.gltf+json' : ['gltf'],
-        'model/vnd.gltf.binary' : ['glb'],
-        'application/octet-stream' : ['b3dm', 'pnts', 'i3dm', 'cmpt'],
+        'model/gltf+json' : ['gltf'],
+        'model/gltf.binary' : ['bgltf', 'glb'],
         'text/plain' : ['glsl']
     });
 

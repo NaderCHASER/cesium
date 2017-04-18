@@ -1,16 +1,12 @@
 Change Log
 ==========
 
-### Version TODO
+### 1.33 - 2017-05-01
 
-* Added support for [3D Tiles](https://github.com/AnalyticalGraphicsInc/3d-tiles/blob/master/README.md) for streaming massive heterogeneous 3D geospatial datasets.  The new Cesium APIs are:
-   * `Cesium3DTileset`
-   * `Cesium3DTileStyle`, `StyleExpression`, `Expression`, and `ConditionsExpression`
-   * `Cesium3DTile`
-   * `Cesium3DTileContent`
-   * `Cesium3DTileFeature`
-   * `Cesium3DTilesInspector`
-   * `Cesium3DTilesInspectorViewModel`
+* Added `disableDepthTestDistance` to billboards, points and labels. This sets the distance to the camera where the depth test will be disabled. Setting it to zero (the default) will alwasy enable the depth test. Setting it to `Number.POSITVE_INFINITY` will never enabled the depth test. Also added `scene.minimumDisableDepthTestDistance` to change the default value from zero. [#5166](https://github.com/AnalyticalGraphicsInc/cesium/pull/5166)
+* Fixed issue with displaying `MapboxImageryProvider` default token error message [#5191](https://github.com/AnalyticalGraphicsInc/cesium/pull/5191)
+* Added a `depthFailMaterial` property to line entities, which is the material used to render the line when it fails the depth test. [#5160](https://github.com/AnalyticalGraphicsInc/cesium/pull/5160)
+* Upgrade FXAA to version 3.11. [#5200](https://github.com/AnalyticalGraphicsInc/cesium/pull/5200)
 
 ### 1.32 - 2017-04-03
 
