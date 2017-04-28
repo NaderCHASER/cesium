@@ -1024,8 +1024,8 @@ define([
         '{northProjected}': northProjectedTag,
         '{width}': widthTag,
         '{height}': heightTag,
-        '{min}': minTag,
-        '{max}': maxTag
+        '{min}': paletteMinimumTag,
+        '{max}': paletteMaximumTag
     };
 
     var pickFeaturesTags = combine(tags, {
