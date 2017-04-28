@@ -201,8 +201,8 @@ define([
         this._readyPromise = undefined;
         this._tileRenderer = undefined;
         this._palette = undefined;
-        this._min = undefined;
-        this._max = undefined;
+        this._paletteMinimum = undefined;
+        this._paletteMaximum = undefined;
 
         /**
          * Gets or sets a value indicating whether feature picking is enabled.  If true, {@link CustomTemplateImageryProvider#pickFeatures} will
@@ -574,17 +574,14 @@ define([
 
             that._tileRenderer = defaultValue(properties.tileRenderer);
             that._palette = defaultValue(properties.palette);
+            that._paletteMinimum = defaultValue(properties.paletteMinimum);
+            that._paletteMaximum = defaultValue(properties.paletteMaximum);
 
             var credit = properties.credit;
             if (typeof credit === 'string') {
                 credit = new Credit(credit);
             }
             that._credit = credit;
-
-            if(isArray(that._palette)) {
-                that._min = that._palette[0][0];
-                that._max = that._palette[that._palette.length-1][0];
-            }
 
             that._urlParts = urlTemplateToParts(that._url, tags);
             that._pickFeaturesUrlParts = urlTemplateToParts(that._pickFeaturesUrl, pickFeaturesTags);
@@ -832,12 +829,12 @@ define([
         return imageryProvider._subdomains[index];
     }
 
-    function minTag(imageryProvider, x, y, level) {
-        return padWithZerosIfNecessary(imageryProvider, '{min}', imageryProvider._min);
+    function paletteMinimumTag(imageryProvider, x, y, level) {
+        return padWithZerosIfNecessary(imageryProvider, '{min}', imageryProvider._paletteMinimum);
     }
 
-    function maxTag(imageryProvider, x, y, level) {
-        return padWithZerosIfNecessary(imageryProvider, '{max}', imageryProvider._max);
+    function paletteMaximumTag(imageryProvider, x, y, level) {
+        return padWithZerosIfNecessary(imageryProvider, '{max}', imageryProvider._paletteMaximum);
     }
 
     var degreesScratchComputed = false;
