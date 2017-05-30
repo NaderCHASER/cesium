@@ -1917,7 +1917,6 @@ defineSuite([
             }
             Matrix4.multiplyByMatrix3(m.modelMatrix, rotate, m.modelMatrix);
 
-            /* jshint loopfunc: true */
             expect(scene).toRenderAndCall(function(rgba) {
                 expect(rgba).not.toEqual([0, 0, 0, 255]);
                 expect(rgba).not.toEqual(oldPixelColor);
@@ -2293,7 +2292,12 @@ defineSuite([
         });
     });
 
-    it('Gets memory usage', function() {
+    it('gets triangle count', function() {
+        expect(texturedBoxModel.trianglesLength).toBe(12);
+        expect(cesiumAirModel.trianglesLength).toBe(5984);
+    });
+
+    it('gets memory usage', function() {
         // Texture is originally 211*211 but is scaled up to 256*256 to support its minification filter and then is mipmapped
         var expectedTextureMemory = Math.floor(256*256*4*(4/3));
         var expectedVertexMemory = 840;
