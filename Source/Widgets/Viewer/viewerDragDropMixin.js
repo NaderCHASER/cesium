@@ -276,7 +276,7 @@ define([
                         canvas : scene.canvas
                     });
                 } else {
-                    viewer.dropError.raiseEvent(viewer, fileName, 'Unrecognized file: ' + fileName);
+                    viewer.dropError.raiseEvent(viewer, fileName, 'Unrecognized file: ' + fileName, file);
                     return;
                 }
 
@@ -286,11 +286,11 @@ define([
                             viewer.flyTo(dataSource);
                         }
                     }).otherwise(function(error) {
-                        viewer.dropError.raiseEvent(viewer, fileName, error);
+                        viewer.dropError.raiseEvent(viewer, fileName, error, file);
                     });
                 }
             } catch (error) {
-                viewer.dropError.raiseEvent(viewer, fileName, error);
+                viewer.dropError.raiseEvent(viewer, fileName, error, file);
             }
         };
     }
