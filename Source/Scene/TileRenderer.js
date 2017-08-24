@@ -162,18 +162,26 @@ define([
             palette[i].takeoff.red = color[1][0];
             palette[i].takeoff.green = color[1][1];
             palette[i].takeoff.blue = color[1][2];
-            palette[i].takeoff.alpha = (typeof(color[1][3]) !== 'undefined' ? color[1][3] : 255);
 
-            if(i > 0 && color[1].length <= 4) {
+            var length = Object.keys(color[1]).length;
+
+            if(i > 0 && length <= 4) {
+                palette[i].takeoff.alpha = (typeof(color[1][3]) !== 'undefined' ? color[1][3] : 255);
                 palette[i].approach.red = color[1][0];
                 palette[i].approach.green = color[1][1];
                 palette[i].approach.blue = color[1][2];
                 palette[i].approach.alpha = (typeof(color[1][3]) !== 'undefined' ? color[1][3] : 255);
-            } else if(i > 0 && color[1].length > 4) {
+            } else if(i > 0 && length === 6) {
+                palette[i].takeoff.alpha = 255;
+                palette[i].approach.red = color[1][3];
+                palette[i].approach.green = color[1][4];
+                palette[i].approach.blue = color[1][5];
+            } else if(i > 0 && length === 8) {
+                palette[i].takeoff.alpha = color[1][3];
                 palette[i].approach.red = color[1][4];
                 palette[i].approach.green = color[1][5];
                 palette[i].approach.blue = color[1][6];
-                palette[i].approach.alpha = (typeof(color[1][7]) !== 'undefined' ? color[1][7] : 255);;
+                palette[i].approach.alpha = color[1][7];
             }
 
             if(index < min || min === null) {
