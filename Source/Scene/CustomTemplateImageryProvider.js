@@ -201,8 +201,6 @@ define([
         this._readyPromise = undefined;
         this._tileRenderer = undefined;
         this._palette = undefined;
-        this._paletteMinimum = undefined;
-        this._paletteMaximum = undefined;
 
         /**
          * Gets or sets a value indicating whether feature picking is enabled.  If true, {@link CustomTemplateImageryProvider#pickFeatures} will
@@ -574,8 +572,6 @@ define([
 
             that._tileRenderer = defaultValue(properties.tileRenderer);
             that._palette = defaultValue(properties.palette);
-            that._paletteMinimum = defaultValue(properties.paletteMinimum);
-            that._paletteMaximum = defaultValue(properties.paletteMaximum);
 
             var credit = properties.credit;
             if (typeof credit === 'string') {
@@ -829,14 +825,6 @@ define([
         return imageryProvider._subdomains[index];
     }
 
-    function paletteMinimumTag(imageryProvider, x, y, level) {
-        return padWithZerosIfNecessary(imageryProvider, '{min}', imageryProvider._paletteMinimum);
-    }
-
-    function paletteMaximumTag(imageryProvider, x, y, level) {
-        return padWithZerosIfNecessary(imageryProvider, '{max}', imageryProvider._paletteMaximum);
-    }
-
     var degreesScratchComputed = false;
     var degreesScratch = new Rectangle();
 
@@ -1023,9 +1011,7 @@ define([
         '{eastProjected}': eastProjectedTag,
         '{northProjected}': northProjectedTag,
         '{width}': widthTag,
-        '{height}': heightTag,
-        '{min}': paletteMinimumTag,
-        '{max}': paletteMaximumTag
+        '{height}': heightTag
     };
 
     var pickFeaturesTags = combine(tags, {
