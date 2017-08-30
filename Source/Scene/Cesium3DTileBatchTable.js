@@ -1,8 +1,8 @@
-/*global define*/
 define([
         '../Core/arrayFill',
         '../Core/Cartesian2',
         '../Core/Cartesian4',
+        '../Core/Check',
         '../Core/clone',
         '../Core/Color',
         '../Core/combine',
@@ -14,6 +14,7 @@ define([
         '../Core/DeveloperError',
         '../Core/Math',
         '../Core/PixelFormat',
+        '../Core/RuntimeError',
         '../Renderer/ContextLimits',
         '../Renderer/DrawCommand',
         '../Renderer/Pass',
@@ -24,14 +25,18 @@ define([
         '../Renderer/Texture',
         '../Renderer/TextureMagnificationFilter',
         '../Renderer/TextureMinificationFilter',
+        './AttributeType',
         './BlendingState',
         './Cesium3DTileColorBlendMode',
         './CullFace',
-        './getBinaryAccessor'
+        './getBinaryAccessor',
+        './StencilFunction',
+        './StencilOperation'
     ], function(
         arrayFill,
         Cartesian2,
         Cartesian4,
+        Check,
         clone,
         Color,
         combine,
@@ -43,6 +48,7 @@ define([
         DeveloperError,
         CesiumMath,
         PixelFormat,
+        RuntimeError,
         ContextLimits,
         DrawCommand,
         Pass,
@@ -53,18 +59,22 @@ define([
         Texture,
         TextureMagnificationFilter,
         TextureMinificationFilter,
+        AttributeType,
         BlendingState,
         Cesium3DTileColorBlendMode,
         CullFace,
-        getBinaryAccessor) {
+        getBinaryAccessor,
+        StencilFunction,
+        StencilOperation) {
     'use strict';
+
+    var DEFAULT_COLOR_VALUE = Color.WHITE;
+    var DEFAULT_SHOW_VALUE = true;
 
     /**
      * @private
      */
     function Cesium3DTileBatchTable(content, featuresLength, batchTableJson, batchTableBinary) {
-        featuresLength = defaultValue(featuresLength, 0);
-
         /**
          * @readonly
          */
@@ -162,8 +172,8 @@ define([
         var parentIdsLength = instancesLength;
 
         if (defined(classIds.byteOffset)) {
-            classIds.componentType = defaultValue(classIds.componentType, 'UNSIGNED_SHORT');
-            classIds.type = 'SCALAR';
+            classIds.componentType = defaultValue(classIds.componentType, ComponentDatatype.UNSIGNED_SHORT);
+            classIds.type = AttributeType.SCALAR;
             binaryAccessor = getBinaryAccessor(classIds);
             classIds = binaryAccessor.createArrayBufferView(binary.buffer, binary.byteOffset + classIds.byteOffset, instancesLength);
         }
@@ -171,8 +181,8 @@ define([
         var parentIndexes;
         if (defined(parentCounts)) {
             if (defined(parentCounts.byteOffset)) {
-                parentCounts.componentType = defaultValue(parentCounts.componentType, 'UNSIGNED_SHORT');
-                parentCounts.type = 'SCALAR';
+                parentCounts.componentType = defaultValue(parentCounts.componentType, ComponentDatatype.UNSIGNED_SHORT);
+                parentCounts.type = AttributeType.SCALAR;
                 binaryAccessor = getBinaryAccessor(parentCounts);
                 parentCounts = binaryAccessor.createArrayBufferView(binary.buffer, binary.byteOffset + parentCounts.byteOffset, instancesLength);
             }
@@ -184,13 +194,11 @@ define([
             }
         }
 
-        if (defined(parentIds)) {
-            if (defined(parentIds.byteOffset)) {
-                parentIds.componentType = defaultValue(parentIds.componentType, 'UNSIGNED_SHORT');
-                parentIds.type = 'SCALAR';
-                binaryAccessor = getBinaryAccessor(parentIds);
-                parentIds = binaryAccessor.createArrayBufferView(binary.buffer, binary.byteOffset + parentIds.byteOffset, parentIdsLength);
-            }
+        if (defined(parentIds) && defined(parentIds.byteOffset)) {
+            parentIds.componentType = defaultValue(parentIds.componentType, ComponentDatatype.UNSIGNED_SHORT);
+            parentIds.type = AttributeType.SCALAR;
+            binaryAccessor = getBinaryAccessor(parentIds);
+            parentIds = binaryAccessor.createArrayBufferView(binary.buffer, binary.byteOffset + parentIds.byteOffset, parentIdsLength);
         }
 
         var classesLength = classes.length;
@@ -274,44 +282,40 @@ define([
 
     Cesium3DTileBatchTable.getBinaryProperties = function(featuresLength, json, binary) {
         var binaryProperties;
-        if (defined(json)) {
-            for (var name in json) {
-                if (json.hasOwnProperty(name)) {
-                    var property = json[name];
-                    var byteOffset = property.byteOffset;
-                    if (defined(byteOffset)) {
-                        // This is a binary property
-                        var componentType = ComponentDatatype.fromName(property.componentType);
-                        var type = property.type;
-                        //>>includeStart('debug', pragmas.debug);
-                        if (!defined(componentType)) {
-                            throw new DeveloperError('componentType is required.');
-                        }
-                        if (!defined(type)) {
-                            throw new DeveloperError('type is required.');
-                        }
-                        if (!defined(binary)) {
-                            throw new DeveloperError('Property ' + name + ' requires a batch table binary.');
-                        }
-                        //>>includeEnd('debug');
-
-                        var binaryAccessor = getBinaryAccessor(property);
-                        var componentCount = binaryAccessor.componentsPerAttribute;
-                        var classType = binaryAccessor.classType;
-                        var typedArray = binaryAccessor.createArrayBufferView(binary.buffer, binary.byteOffset + byteOffset, featuresLength);
-
-                        if (!defined(binaryProperties)) {
-                            binaryProperties = {};
-                        }
-
-                        // Store any information needed to access the binary data, including the typed array,
-                        // componentCount (e.g. a VEC4 would be 4), and the type used to pack and unpack (e.g. Cartesian4).
-                        binaryProperties[name] = {
-                            typedArray : typedArray,
-                            componentCount : componentCount,
-                            type : classType
-                        };
+        for (var name in json) {
+            if (json.hasOwnProperty(name)) {
+                var property = json[name];
+                var byteOffset = property.byteOffset;
+                if (defined(byteOffset)) {
+                    // This is a binary property
+                    var componentType = property.componentType;
+                    var type = property.type;
+                    if (!defined(componentType)) {
+                        throw new RuntimeError('componentType is required.');
                     }
+                    if (!defined(type)) {
+                        throw new RuntimeError('type is required.');
+                    }
+                    if (!defined(binary)) {
+                        throw new RuntimeError('Property ' + name + ' requires a batch table binary.');
+                    }
+
+                    var binaryAccessor = getBinaryAccessor(property);
+                    var componentCount = binaryAccessor.componentsPerAttribute;
+                    var classType = binaryAccessor.classType;
+                    var typedArray = binaryAccessor.createArrayBufferView(binary.buffer, binary.byteOffset + byteOffset, featuresLength);
+
+                    if (!defined(binaryProperties)) {
+                        binaryProperties = {};
+                    }
+
+                    // Store any information needed to access the binary data, including the typed array,
+                    // componentCount (e.g. a VEC4 would be 4), and the type used to pack and unpack (e.g. Cartesian4).
+                    binaryProperties[name] = {
+                        typedArray : typedArray,
+                        componentCount : componentCount,
+                        type : classType
+                    };
                 }
             }
         }
@@ -346,16 +350,16 @@ define([
         return batchTable._showAlphaProperties;
     }
 
-    Cesium3DTileBatchTable.prototype.setShow = function(batchId, show) {
-        var featuresLength = this.featuresLength;
-        //>>includeStart('debug', pragmas.debug);
+    function checkBatchId(batchId, featuresLength) {
         if (!defined(batchId) || (batchId < 0) || (batchId > featuresLength)) {
             throw new DeveloperError('batchId is required and between zero and featuresLength - 1 (' + featuresLength - + ').');
         }
+    }
 
-        if (!defined(show)) {
-            throw new DeveloperError('show is required.');
-        }
+    Cesium3DTileBatchTable.prototype.setShow = function(batchId, show) {
+        //>>includeStart('debug', pragmas.debug);
+        checkBatchId(batchId, this.featuresLength);
+        Check.typeOf.bool('show', show);
         //>>includeEnd('debug');
 
         if (show && !defined(this._showAlphaProperties)) {
@@ -380,12 +384,20 @@ define([
         }
     };
 
-    Cesium3DTileBatchTable.prototype.getShow = function(batchId) {
-        var featuresLength = this.featuresLength;
+    Cesium3DTileBatchTable.prototype.setAllShow = function(show) {
         //>>includeStart('debug', pragmas.debug);
-        if (!defined(batchId) || (batchId < 0) || (batchId > featuresLength)) {
-            throw new DeveloperError('batchId is required and between zero and featuresLength - 1 (' + featuresLength - + ').');
+        Check.typeOf.bool('show', show);
+        //>>includeEnd('debug');
+
+        var featuresLength = this.featuresLength;
+        for (var i = 0; i < featuresLength; ++i) {
+            this.setShow(i, show);
         }
+    };
+
+    Cesium3DTileBatchTable.prototype.getShow = function(batchId) {
+        //>>includeStart('debug', pragmas.debug);
+        checkBatchId(batchId, this.featuresLength);
         //>>includeEnd('debug');
 
         if (!defined(this._showAlphaProperties)) {
@@ -397,26 +409,20 @@ define([
         return (this._showAlphaProperties[offset] === 255);
     };
 
-    var scratchColor = new Array(4);
+    var scratchColorBytes = new Array(4);
 
     Cesium3DTileBatchTable.prototype.setColor = function(batchId, color) {
-        var featuresLength = this.featuresLength;
         //>>includeStart('debug', pragmas.debug);
-        if (!defined(batchId) || (batchId < 0) || (batchId > featuresLength)) {
-            throw new DeveloperError('batchId is required and between zero and featuresLength - 1 (' + featuresLength - + ').');
-        }
-
-        if (!defined(color)) {
-            throw new DeveloperError('color is required.');
-        }
+        checkBatchId(batchId, this.featuresLength);
+        Check.typeOf.object('color', color);
         //>>includeEnd('debug');
 
-        if (Color.equals(color, Color.WHITE) && !defined(this._batchValues)) {
+        if (Color.equals(color, DEFAULT_COLOR_VALUE) && !defined(this._batchValues)) {
             // Avoid allocating since the default is white
             return;
         }
 
-        var newColor = color.toBytes(scratchColor);
+        var newColor = color.toBytes(scratchColorBytes);
         var newAlpha = newColor[3];
 
         var batchValues = getBatchValues(this);
@@ -456,32 +462,23 @@ define([
 
     Cesium3DTileBatchTable.prototype.setAllColor = function(color) {
         //>>includeStart('debug', pragmas.debug);
-        if (!defined(color)) {
-            throw new DeveloperError('color is required.');
-        }
+        Check.typeOf.object('color', color);
         //>>includeEnd('debug');
 
         var featuresLength = this.featuresLength;
         for (var i = 0; i < featuresLength; ++i) {
-            // PERFORMANCE_IDEA: duplicate part of setColor here to factor things out of the loop
             this.setColor(i, color);
         }
     };
 
     Cesium3DTileBatchTable.prototype.getColor = function(batchId, result) {
-        var featuresLength = this.featuresLength;
         //>>includeStart('debug', pragmas.debug);
-        if (!defined(batchId) || (batchId < 0) || (batchId > featuresLength)) {
-            throw new DeveloperError('batchId is required and between zero and featuresLength - 1 (' + featuresLength - + ').');
-        }
-
-        if (!defined(result)) {
-            throw new DeveloperError('result is required.');
-        }
+        checkBatchId(batchId, this.featuresLength);
+        Check.typeOf.object('result', result);
         //>>includeEnd('debug');
 
         if (!defined(this._batchValues)) {
-            return Color.clone(Color.WHITE, result);
+            return Color.clone(DEFAULT_COLOR_VALUE, result);
         }
 
         var batchValues = this._batchValues;
@@ -495,6 +492,26 @@ define([
             batchValues[offset + 2],
             showAlphaProperties[propertyOffset + 1],
             result);
+    };
+
+    var scratchColor = new Color();
+
+    Cesium3DTileBatchTable.prototype.applyStyle = function(frameState, style) {
+        if (!defined(style)) {
+            this.setAllColor(DEFAULT_COLOR_VALUE);
+            this.setAllShow(true);
+            return;
+        }
+
+        var content = this._content;
+        var length = this.featuresLength;
+        for (var i = 0; i < length; ++i) {
+            var feature = content.getFeature(i);
+            var color = defined(style.color) ? style.color.evaluateColor(frameState, feature, scratchColor) : DEFAULT_COLOR_VALUE;
+            var show = defined(style.show) ? style.show.evaluate(frameState, feature) : DEFAULT_SHOW_VALUE;
+            this.setColor(i, color);
+            this.setShow(i, show);
+        }
     };
 
     function getBinaryProperty(binaryProperty, index) {
@@ -564,23 +581,17 @@ define([
     }
 
     function traverseHierarchySingleParent(hierarchy, instanceIndex, endConditionCallback) {
-        while (true) {
+        var hasParent = true;
+        while (hasParent) {
             var result = endConditionCallback(hierarchy, instanceIndex);
             if (defined(result)) {
                 // The end condition was met, stop the traversal and return the result
                 return result;
             }
             var parentId = hierarchy.parentIds[instanceIndex];
-            if (parentId === instanceIndex) {
-                // Stop the traversal when the instance has no parent (its parentId equals itself)
-                break;
-            }
+            hasParent = parentId !== instanceIndex;
             instanceIndex = parentId;
         }
-    }
-
-    function traverseHierarchyNoParents(hierarchy, instanceIndex, endConditionCallback) {
-        return endConditionCallback(hierarchy, instanceIndex);
     }
 
     function traverseHierarchy(hierarchy, instanceIndex, endConditionCallback) {
@@ -589,7 +600,7 @@ define([
         var parentCounts = hierarchy.parentCounts;
         var parentIds = hierarchy.parentIds;
         if (!defined(parentIds)) {
-            return traverseHierarchyNoParents(hierarchy, instanceIndex, endConditionCallback);
+            return endConditionCallback(hierarchy, instanceIndex);
         } else if (defined(parentCounts)) {
             return traverseHierarchyMultipleParents(hierarchy, instanceIndex, endConditionCallback);
         }
@@ -608,14 +619,16 @@ define([
         return defined(result);
     }
 
-    function getPropertyNamesInHierarchy(batchTable, batchId, names) {
+    function getPropertyNamesInHierarchy(batchTable, batchId, results) {
         var hierarchy = batchTable._batchTableHierarchy;
         traverseHierarchy(hierarchy, batchId, function(hierarchy, instanceIndex) {
             var classId = hierarchy.classIds[instanceIndex];
             var instances = hierarchy.classes[classId].instances;
             for (var name in instances) {
                 if (instances.hasOwnProperty(name)) {
-                    names[name] = true;
+                    if (results.indexOf(name) === -1) {
+                        results.push(name);
+                    }
                 }
             }
         });
@@ -662,14 +675,9 @@ define([
     }
 
     Cesium3DTileBatchTable.prototype.isClass = function(batchId, className) {
-        var featuresLength = this.featuresLength;
         //>>includeStart('debug', pragmas.debug);
-        if (!defined(batchId) || (batchId < 0) || (batchId > featuresLength)) {
-            throw new DeveloperError('batchId is required and between zero and featuresLength - 1 (' + featuresLength - + ').');
-        }
-        if (!defined(className)) {
-            throw new DeveloperError('className is required.');
-        }
+        checkBatchId(batchId, this.featuresLength);
+        Check.typeOf.string('className', className);
         //>>includeEnd('debug');
 
         // PERFORMANCE_IDEA : cache results in the ancestor classes to speed up this check if this area becomes a hotspot
@@ -691,20 +699,15 @@ define([
 
     Cesium3DTileBatchTable.prototype.isExactClass = function(batchId, className) {
         //>>includeStart('debug', pragmas.debug);
-        if (!defined(className)) {
-            throw new DeveloperError('className is required.');
-        }
+        Check.typeOf.string('className', className);
         //>>includeEnd('debug');
 
         return (this.getExactClassName(batchId) === className);
     };
 
     Cesium3DTileBatchTable.prototype.getExactClassName = function(batchId) {
-        var featuresLength = this.featuresLength;
         //>>includeStart('debug', pragmas.debug);
-        if (!defined(batchId) || (batchId < 0) || (batchId > featuresLength)) {
-            throw new DeveloperError('batchId is required and between zero and featuresLength - 1 (' + featuresLength - + ').');
-        }
+        checkBatchId(batchId, this.featuresLength);
         //>>includeEnd('debug');
 
         var hierarchy = this._batchTableHierarchy;
@@ -717,60 +720,41 @@ define([
     };
 
     Cesium3DTileBatchTable.prototype.hasProperty = function(batchId, name) {
-        var featuresLength = this.featuresLength;
         //>>includeStart('debug', pragmas.debug);
-        if (!defined(batchId) || (batchId < 0) || (batchId > featuresLength)) {
-            throw new DeveloperError('batchId is required and between zero and featuresLength - 1 (' + featuresLength - + ').');
-        }
-        if (!defined(name)) {
-            throw new DeveloperError('name is required.');
-        }
+        checkBatchId(batchId, this.featuresLength);
+        Check.typeOf.string('name', name);
         //>>includeEnd('debug');
 
         var json = this.batchTableJson;
         return (defined(json) && defined(json[name])) || (defined(this._batchTableHierarchy) && hasPropertyInHierarchy(this, batchId, name));
     };
 
-    Cesium3DTileBatchTable.prototype.getPropertyNames = function(batchId) {
-        var featuresLength = this.featuresLength;
+    Cesium3DTileBatchTable.prototype.getPropertyNames = function(batchId, results) {
         //>>includeStart('debug', pragmas.debug);
-        if (!defined(batchId) || (batchId < 0) || (batchId > featuresLength)) {
-            throw new DeveloperError('batchId is required and between zero and featuresLength - 1 (' + featuresLength - + ').');
-        }
+        checkBatchId(batchId, this.featuresLength);
         //>>includeEnd('debug');
 
+        results = defined(results) ? results : [];
+        results.length = 0;
+
         var json = this.batchTableJson;
-
-        if (!defined(json)) {
-            return [];
-        }
-
-        if (!defined(this._batchTableHierarchy)) {
-            return Object.keys(json);
-        }
-
-        // Has a batch table hierarchy. Build a hash map of property names to avoid duplicates.
-        // Different classes in the hierarchy may have identical property names.
-        var names = {};
         for (var name in json) {
             if (json.hasOwnProperty(name)) {
-                names[name] = true;
+                results.push(name);
             }
         }
-        getPropertyNamesInHierarchy(this, batchId, names);
 
-        return Object.keys(names);
+        if (defined(this._batchTableHierarchy)) {
+            getPropertyNamesInHierarchy(this, batchId, results);
+        }
+
+        return results;
     };
 
     Cesium3DTileBatchTable.prototype.getProperty = function(batchId, name) {
-        var featuresLength = this.featuresLength;
         //>>includeStart('debug', pragmas.debug);
-        if (!defined(batchId) || (batchId < 0) || (batchId > featuresLength)) {
-            throw new DeveloperError('batchId is required and between zero and featuresLength - 1 (' + featuresLength - + ').');
-        }
-        if (!defined(name)) {
-            throw new DeveloperError('name is required.');
-        }
+        checkBatchId(batchId, this.featuresLength);
+        Check.typeOf.string('name', name);
         //>>includeEnd('debug');
 
         if (!defined(this.batchTableJson)) {
@@ -802,13 +786,8 @@ define([
     Cesium3DTileBatchTable.prototype.setProperty = function(batchId, name, value) {
         var featuresLength = this.featuresLength;
         //>>includeStart('debug', pragmas.debug);
-        if (!defined(batchId) || (batchId < 0) || (batchId > featuresLength)) {
-            throw new DeveloperError('batchId is required and between zero and featuresLength - 1 (' + featuresLength - + ').');
-        }
-
-        if (!defined(name)) {
-            throw new DeveloperError('name is required.');
-        }
+        checkBatchId(batchId, featuresLength);
+        Check.typeOf.string('name', name);
         //>>includeEnd('debug');
 
         if (defined(this._batchTableBinaryProperties)) {
@@ -890,8 +869,6 @@ define([
                     '    vec4 featureProperties = texture2D(tile_batchTexture, st); \n' +
                     '    float show = ceil(featureProperties.a); \n' +      // 0 - false, non-zeo - true
                     '    gl_Position *= show; \n';                          // Per-feature show/hide
-// TODO: Translucent should still write depth for picking?  For example, we want to grab highlighted building that became translucent
-// TODO: Same TODOs below in getFragmentShaderCallback
                 if (handleTranslucent) {
                     newMain +=
                         '    bool isStyleTranslucent = (featureProperties.a != 1.0); \n' +
@@ -944,7 +921,9 @@ define([
             return getHighlightOnlyShader(source);
         }
 
-        // Find the diffuse uniform
+        // Find the diffuse uniform. Examples matches:
+        //   uniform vec3 u_diffuseColor;
+        //   uniform sampler2D diffuseTexture;
         var regex = new RegExp('uniform\\s+(vec[34]|sampler2D)\\s+' + diffuseUniformName + ';');
         var uniformMatch = source.match(regex);
 
@@ -957,7 +936,7 @@ define([
         var type = uniformMatch[1];
 
         source = ShaderSource.replaceMain(source, 'tile_main');
-        source = source.replace(declaration, ''); // Remove uniform declaration for now so the replace below don't affect it
+        source = source.replace(declaration, ''); // Remove uniform declaration for now so the replace below doesn't affect it
 
         // If the tile color is white, use the source color. This implies the feature has not been styled.
         // Highlight: tile_colorBlend is 0.0 and the source color is used
@@ -1070,12 +1049,17 @@ define([
         var colorBlendAmount = tileset.colorBlendAmount;
         if (colorBlendMode === Cesium3DTileColorBlendMode.HIGHLIGHT) {
             return 0.0;
-        } else if (colorBlendMode === Cesium3DTileColorBlendMode.REPLACE) {
+        }
+        if (colorBlendMode === Cesium3DTileColorBlendMode.REPLACE) {
             return 1.0;
-        } else if (colorBlendMode === Cesium3DTileColorBlendMode.MIX) {
+        }
+        if (colorBlendMode === Cesium3DTileColorBlendMode.MIX) {
             // The value 0.0 is reserved for highlight, so clamp to just above 0.0.
             return CesiumMath.clamp(colorBlendAmount, CesiumMath.EPSILON4, 1.0);
         }
+        //>>includeStart('debug', pragmas.debug);
+        throw new DeveloperError('Invalid color blend mode "' + colorBlendMode + '".');
+        //>>includeEnd('debug');
     }
 
     Cesium3DTileBatchTable.prototype.getUniformMapCallback = function() {
@@ -1213,8 +1197,6 @@ define([
                 }
             };
 
-            // uniformMap goes through getUniformMap first in Model.
-            // Combine in this order so uniforms with the same name are overridden.
             return combine(batchUniformMap, uniformMap);
         };
     };
@@ -1227,35 +1209,48 @@ define([
         OPAQUE_AND_TRANSLUCENT : 2
     };
 
-    function updateDerivedCommands(derivedCommands, command) {
-        for (var name in derivedCommands) {
-            if (derivedCommands.hasOwnProperty(name)) {
-                var derivedCommand = derivedCommands[name];
-                derivedCommand.castShadows = command.castShadows;
-                derivedCommand.receiveShadows = command.receiveShadows;
-                derivedCommand.primitiveType = command.primitiveType;
-            }
-        }
-    }
-
-    Cesium3DTileBatchTable.prototype.getAddCommand = function() {
+    Cesium3DTileBatchTable.prototype.addDerivedCommands = function(frameState, commandStart) {
+        var commandList = frameState.commandList;
+        var commandEnd = commandList.length;
+        var tile = this._content._tile;
+        var tileset = tile._tileset;
+        var bivariateVisibilityTest = tileset.skipLevelOfDetail && tileset._hasMixedContent && frameState.context.stencilBuffer;
         var styleCommandsNeeded = getStyleCommandsNeeded(this);
 
-// TODO: This function most likely will not get optimized.  Do something like this later in the render loop.
-        return function(command) {
-            var commandList = this.commandList;
-
+        for (var i = commandStart; i < commandEnd; ++i) {
+            var command = commandList[i];
             var derivedCommands = command.derivedCommands.tileset;
             if (!defined(derivedCommands)) {
                 derivedCommands = {};
                 command.derivedCommands.tileset = derivedCommands;
-
                 derivedCommands.originalCommand = deriveCommand(command);
-                derivedCommands.back = deriveTranslucentCommand(command, CullFace.FRONT);
-                derivedCommands.front = deriveTranslucentCommand(command, CullFace.BACK);
             }
 
-            updateDerivedCommands(derivedCommands, command);
+            updateDerivedCommand(derivedCommands.originalCommand, command);
+
+            if (styleCommandsNeeded !== StyleCommandsNeeded.ALL_OPAQUE) {
+                if (!defined(derivedCommands.translucent)) {
+                    derivedCommands.translucent = deriveTranslucentCommand(derivedCommands.originalCommand);
+                }
+                updateDerivedCommand(derivedCommands.translucent, command);
+            }
+
+            if (bivariateVisibilityTest) {
+                if (command.pass !== Pass.TRANSLUCENT) {
+                    if (!defined(derivedCommands.zback)) {
+                        derivedCommands.zback = deriveZBackfaceCommand(derivedCommands.originalCommand);
+                    }
+                    tileset._backfaceCommands.push(derivedCommands.zback);
+                }
+                if (!defined(derivedCommands.stencil) || tile._selectionDepth !== tile._lastSelectionDepth) {
+                    derivedCommands.stencil = deriveStencilCommand(derivedCommands.originalCommand, tile._selectionDepth);
+                    tile._lastSelectionDepth = tile._selectionDepth;
+                }
+                updateDerivedCommand(derivedCommands.stencil, command);
+            }
+
+            var opaqueCommand = bivariateVisibilityTest ? derivedCommands.stencil : derivedCommands.originalCommand;
+            var translucentCommand = derivedCommands.translucent;
 
             // If the command was originally opaque:
             //    * If the styling applied to the tile is all opaque, use the original command
@@ -1264,35 +1259,34 @@ define([
             //      and back faces) with a translucent render state.
             //    * If the styling causes both opaque and translucent features in this tile,
             //      then use both sets of commands.
-// TODO: if the tile has multiple commands, we do not know what features are in what
-// commands so the third-case may be overkill.  Change this to a PERFORMANCE_IDEA?
             if (command.pass !== Pass.TRANSLUCENT) {
                 if (styleCommandsNeeded === StyleCommandsNeeded.ALL_OPAQUE) {
-                    commandList.push(derivedCommands.originalCommand);
+                    commandList[i] = opaqueCommand;
                 }
-
                 if (styleCommandsNeeded === StyleCommandsNeeded.ALL_TRANSLUCENT) {
-// TODO: vector tiles, for example, will not always want two passes for translucency.  Some primitives,
-// for example, those created from Cesium geometries, will also already return commands for two
-// passes if the command is originally translucent.  Same TODO below.
-                    commandList.push(derivedCommands.back);
-                    commandList.push(derivedCommands.front);
+                    commandList[i] = translucentCommand;
                 }
-
                 if (styleCommandsNeeded === StyleCommandsNeeded.OPAQUE_AND_TRANSLUCENT) {
-                    commandList.push(derivedCommands.originalCommand);
-                    commandList.push(derivedCommands.back);
-                    commandList.push(derivedCommands.front);
+                    // PERFORMANCE_IDEA: if the tile has multiple commands, we do not know what features are in what
+                    // commands so this case may be overkill.
+                    commandList[i] = opaqueCommand;
+                    commandList.push(translucentCommand);
                 }
             } else {
                 // Command was originally translucent so no need to derive new commands;
                 // as of now, a style can't change an originally translucent feature to
                 // opaque since the style's alpha is modulated, not a replacement.  When
                 // this changes, we need to derive new opaque commands here.
-                commandList.push(derivedCommands.originalCommand);
+                commandList[i] = opaqueCommand;
             }
-        };
+        }
     };
+
+    function updateDerivedCommand(derivedCommand, command) {
+        derivedCommand.castShadows = command.castShadows;
+        derivedCommand.receiveShadows = command.receiveShadows;
+        derivedCommand.primitiveType = command.primitiveType;
+    }
 
     function getStyleCommandsNeeded(batchTable) {
         var translucentFeaturesLength = batchTable._translucentFeaturesLength;
@@ -1304,13 +1298,6 @@ define([
         }
 
         return StyleCommandsNeeded.OPAQUE_AND_TRANSLUCENT;
-    }
-
-    function deriveTranslucentCommand(command, cullFace) {
-        var derivedCommand = deriveCommand(command);
-        derivedCommand.pass = Pass.TRANSLUCENT;
-        derivedCommand.renderState = getTranslucentRenderState(command.renderState, cullFace);
-        return derivedCommand;
     }
 
     function deriveCommand(command) {
@@ -1329,10 +1316,44 @@ define([
         return derivedCommand;
     }
 
-    function getTranslucentRenderState(renderState, cullFace) {
-        var rs = clone(renderState, true);
+    function deriveTranslucentCommand(command) {
+        var derivedCommand = DrawCommand.shallowClone(command);
+        derivedCommand.pass = Pass.TRANSLUCENT;
+        derivedCommand.renderState = getTranslucentRenderState(command.renderState);
+        return derivedCommand;
+    }
+
+    function deriveZBackfaceCommand(command) {
+        // Write just backface depth of unresolved tiles so resolved stenciled tiles do not appear in front
+        var derivedCommand = DrawCommand.shallowClone(command);
+        var rs = clone(derivedCommand.renderState, true);
         rs.cull.enabled = true;
-        rs.cull.face = cullFace;
+        rs.cull.face = CullFace.FRONT;
+        derivedCommand.renderState = RenderState.fromCache(rs);
+        derivedCommand.castShadows = false;
+        derivedCommand.receiveShadows = false;
+        return derivedCommand;
+    }
+
+    function deriveStencilCommand(command, reference) {
+        var derivedCommand = command;
+        if (command.renderState.depthMask) { // ignore if tile does not write depth (ex. translucent)
+            // Tiles only draw if their selection depth is >= the tile drawn already. They write their
+            // selection depth to the stencil buffer to prevent ancestor tiles from drawing on top
+            derivedCommand = DrawCommand.shallowClone(command);
+            var rs = clone(derivedCommand.renderState, true);
+            rs.stencilTest.enabled = true;
+            rs.stencilTest.reference = reference;
+            rs.stencilTest.frontFunction = StencilFunction.GREATER_OR_EQUAL;
+            rs.stencilTest.frontOperation.zPass = StencilOperation.REPLACE;
+            derivedCommand.renderState = RenderState.fromCache(rs);
+        }
+        return derivedCommand;
+    }
+
+    function getTranslucentRenderState(renderState) {
+        var rs = clone(renderState, true);
+        rs.cull.enabled = false;
         rs.depthTest.enabled = true;
         rs.depthMask = false;
         rs.blending = BlendingState.ALPHA_BLEND;
@@ -1385,7 +1406,7 @@ define([
             }
 
             batchTable._pickTexture = createTexture(batchTable, context, bytes);
-            content._tileset._statistics.batchTableMemorySizeInBytes += batchTable._pickTexture.sizeInBytes;
+            content._tileset._statistics.batchTableByteLength += batchTable._pickTexture.sizeInBytes;
         }
     }
 
@@ -1416,7 +1437,7 @@ define([
             // Create batch texture on-demand
             if (!defined(this._batchTexture)) {
                 this._batchTexture = createTexture(this, context, this._batchValues);
-                tileset._statistics.batchTableMemorySizeInBytes += this._batchTexture.sizeInBytes;
+                tileset._statistics.batchTableByteLength += this._batchTexture.sizeInBytes;
             }
 
             updateBatchTexture(this);  // Apply per-feature show/color updates

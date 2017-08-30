@@ -1,4 +1,3 @@
-/*global defineSuite*/
 defineSuite([
         'Scene/Cesium3DTileBatchTable',
         'Core/Cartesian2',
@@ -47,7 +46,7 @@ defineSuite([
 
     var mockTileset = {
         _statistics : {
-            textureMemorySizeInBytes : 0
+            texturesByteLength : 0
         }
     };
 
@@ -200,6 +199,20 @@ defineSuite([
         expect(batchTable.getColor(1, result)).toEqual(Color.YELLOW);
     });
 
+    it('setAllShow throws with undefined value', function() {
+        var batchTable = new Cesium3DTileBatchTable(mockTileset, 1);
+        expect(function() {
+            batchTable.setAllShow();
+        }).toThrowDeveloperError();
+    });
+
+    it('setAllShow', function() {
+        var batchTable = new Cesium3DTileBatchTable(mockTileset, 2);
+        batchTable.setAllShow(false);
+        expect(batchTable.getShow(0)).toBe(false);
+        expect(batchTable.getShow(1)).toBe(false);
+    });
+
     it('getColor throws with invalid batchId', function() {
         var batchTable = new Cesium3DTileBatchTable(mockTileset, 1);
         expect(function() {
@@ -280,6 +293,18 @@ defineSuite([
         };
         batchTable = new Cesium3DTileBatchTable(mockTileset, 1, batchTableJson);
         expect(batchTable.getPropertyNames(0)).toEqual(['height', 'id']);
+    });
+
+    it('getPropertyNames works with results argument', function() {
+        var batchTableJson = {
+            height: [0.0],
+            id : [0]
+        };
+        var batchTable = new Cesium3DTileBatchTable(mockTileset, 1, batchTableJson);
+        var results = [];
+        var names = batchTable.getPropertyNames(0, results);
+        expect(names).toBe(results);
+        expect(names).toEqual(['height', 'id']);
     });
 
     it('getProperty throws with invalid batchId', function() {
@@ -388,7 +413,7 @@ defineSuite([
         var batchTableBinary = new Float64Array([0, 1]);
         expect(function() {
             return new Cesium3DTileBatchTable(mockTileset, 2, batchTableJson, batchTableBinary);
-        }).toThrowDeveloperError();
+        }).toThrowRuntimeError();
     });
 
     it('throws if the binary property does not specify a type', function() {
@@ -401,7 +426,7 @@ defineSuite([
         var batchTableBinary = new Float64Array([0, 1]);
         expect(function() {
             return new Cesium3DTileBatchTable(mockTileset, 2, batchTableJson, batchTableBinary);
-        }).toThrowDeveloperError();
+        }).toThrowRuntimeError();
     });
 
     it('throws if a binary property exists but there is no batchTableBinary', function() {
@@ -414,7 +439,7 @@ defineSuite([
         };
         expect(function() {
             return new Cesium3DTileBatchTable(mockTileset, 2, batchTableJson);
-        }).toThrowDeveloperError();
+        }).toThrowRuntimeError();
     });
 
     function concatTypedArrays(arrays) {
@@ -577,28 +602,6 @@ defineSuite([
             expect(scene).toPickAndCall(function(result) {
                 expect(result).toBeDefined();
                 expect(result.primitive).toBe(tileset);
-            });
-        });
-    });
-
-    it('renders with debug color', function() {
-        return Cesium3DTilesTester.loadTileset(scene, withoutBatchTableUrl).then(function(tileset) {
-            // Get initial color
-            var color;
-            Cesium3DTilesTester.expectRender(scene, tileset, function(rgba) {
-                color = rgba;
-            });
-
-            // Check for debug color
-            tileset.debugColorizeTiles = true;
-            Cesium3DTilesTester.expectRender(scene, tileset, function(rgba) {
-                expect(rgba).not.toEqual(color);
-            });
-
-            // Check for original color
-            tileset.debugColorizeTiles = false;
-            Cesium3DTilesTester.expectRender(scene, tileset, function(rgba) {
-                expect(rgba).toEqual(color);
             });
         });
     });

@@ -1,4 +1,3 @@
-/*global define*/
 define([
         './SceneMode'
     ], function(
@@ -38,6 +37,18 @@ define([
          * @type {ShadowMap[]}
          */
         this.shadowMaps = [];
+
+        /**
+         * The BRDF look up texture generator used for image-based lighting for PBR models
+         * @type {BrdfLutGenerator}
+         */
+        this.brdfLutGenerator = undefined;
+
+        /**
+         * The environment map used for image-based lighting for PBR models
+         * @type {CubeMap}
+         */
+        this.environmentMap = undefined;
 
         /**
          * The current mode of the scene.
@@ -201,11 +212,10 @@ define([
         };
 
         /**
-        * A scalar used to exaggerate the terrain.
-        *
-        * @type {Number}
-        * @default 1.0
-        */
+         * A scalar used to exaggerate the terrain.
+         * @type {Number}
+         * @default 1.0
+         */
         this.terrainExaggeration = 1.0;
 
         this.shadowHints = {
@@ -287,10 +297,6 @@ define([
          */
         this.minimumDisableDepthTestDistance = undefined;
     }
-
-    FrameState.prototype.addCommand = function(command) {
-        this.commandList.push(command);
-    };
 
     /**
      * A function that will be called at the end of the frame.

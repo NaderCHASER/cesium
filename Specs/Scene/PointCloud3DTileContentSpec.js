@@ -1,4 +1,3 @@
-/*global defineSuite*/
 defineSuite([
         'Scene/PointCloud3DTileContent',
         'Core/Cartesian3',
@@ -8,10 +7,10 @@ defineSuite([
         'Core/HeadingPitchRange',
         'Core/HeadingPitchRoll',
         'Core/Math',
+        'Core/PerspectiveFrustum',
         'Core/Transforms',
         'Scene/Cesium3DTileStyle',
         'Scene/Expression',
-        'Scene/PerspectiveFrustum',
         'Specs/Cesium3DTilesTester',
         'Specs/createScene',
         'ThirdParty/when'
@@ -24,10 +23,10 @@ defineSuite([
         HeadingPitchRange,
         HeadingPitchRoll,
         CesiumMath,
+        PerspectiveFrustum,
         Transforms,
         Cesium3DTileStyle,
         Expression,
-        PerspectiveFrustum,
         Cesium3DTilesTester,
         createScene,
         when) {
@@ -81,25 +80,18 @@ defineSuite([
         scene.primitives.removeAll();
     });
 
-    it('throws with invalid magic', function() {
-        var arrayBuffer = Cesium3DTilesTester.generatePointCloudTileBuffer({
-            magic : [120, 120, 120, 120]
-        });
-        return Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
-    });
-
     it('throws with invalid version', function() {
         var arrayBuffer = Cesium3DTilesTester.generatePointCloudTileBuffer({
             version: 2
         });
-        return Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
+        Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
     });
 
     it('throws if featureTableJsonByteLength is 0', function() {
         var arrayBuffer = Cesium3DTilesTester.generatePointCloudTileBuffer({
             featureTableJsonByteLength : 0
         });
-        return Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
+        Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
     });
 
     it('throws if the feature table does not contain POINTS_LENGTH', function() {
@@ -110,7 +102,7 @@ defineSuite([
                 }
             }
         });
-        return Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
+        Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
     });
 
     it('throws if the feature table does not contain POSITION or POSITION_QUANTIZED', function() {
@@ -119,7 +111,7 @@ defineSuite([
                 POINTS_LENGTH : 1
             }
         });
-        return Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
+        Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
     });
 
     it('throws if the positions are quantized and the feature table does not contain QUANTIZED_VOLUME_SCALE', function() {
@@ -132,7 +124,7 @@ defineSuite([
                 QUANTIZED_VOLUME_OFFSET : [0.0, 0.0, 0.0]
             }
         });
-        return Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
+        Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
     });
 
     it('throws if the positions are quantized and the feature table does not contain QUANTIZED_VOLUME_OFFSET', function() {
@@ -145,7 +137,7 @@ defineSuite([
                 QUANTIZED_VOLUME_SCALE : [1.0, 1.0, 1.0]
             }
         });
-        return Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
+        Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
     });
 
     it('throws if the BATCH_ID semantic is defined but BATCHES_LENGTH is not', function() {
@@ -156,7 +148,7 @@ defineSuite([
                 BATCH_ID : [0, 1]
             }
         });
-        return Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
+        Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'pnts');
     });
 
     it('BATCH_ID semantic uses componentType of UNSIGNED_SHORT by default', function() {
@@ -174,10 +166,6 @@ defineSuite([
 
     it('resolves readyPromise', function() {
         return Cesium3DTilesTester.resolvesReadyPromise(scene, pointCloudRGBUrl);
-    });
-
-    it('rejects readyPromise on failed request', function() {
-        return Cesium3DTilesTester.rejectsReadyPromiseOnFailedRequest('pnts');
     });
 
     it('renders point cloud with rgb colors', function() {
@@ -410,7 +398,7 @@ defineSuite([
                 /* jshint loopfunc: true */
                 while (defined(picked)) {
                     picked.show = false;
-                    expect(scene).toPickAndCall(function(result) {
+                    expect(scene).toPickAndCall(function(result) { //eslint-disable-line no-loop-func
                         picked = result;
                     });
                     ++pickedCountCulling;
@@ -433,7 +421,7 @@ defineSuite([
                 /* jshint loopfunc: true */
                 while (defined(picked)) {
                     picked.show = false;
-                    expect(scene).toPickAndCall(function(result) {
+                    expect(scene).toPickAndCall(function(result) { //eslint-disable-line no-loop-func
                         picked = result;
                     });
                     ++pickedCount;
@@ -596,10 +584,10 @@ defineSuite([
         return Cesium3DTilesTester.loadTileset(scene, pointCloudRGBUrl).then(function(tileset) {
             var content = tileset._root.content;
             expect(function() {
-                content.applyStyleWithShader(scene.frameState, new Cesium3DTileStyle({
+                content.applyStyle(scene.frameState, new Cesium3DTileStyle({
                     color : '${NORMAL}[0] > 0.5'
                 }));
-            }).toThrowDeveloperError();
+            }).toThrowRuntimeError();
         });
     });
 
@@ -607,10 +595,10 @@ defineSuite([
         return Cesium3DTilesTester.loadTileset(scene, pointCloudWithPerPointPropertiesUrl).then(function(tileset) {
             var content = tileset._root.content;
             expect(function() {
-                content.applyStyleWithShader(scene.frameState, new Cesium3DTileStyle({
+                content.applyStyle(scene.frameState, new Cesium3DTileStyle({
                     color : 'color() * ${non_existent_property}'
                 }));
-            }).toThrowDeveloperError();
+            }).toThrowRuntimeError();
         });
     });
 
@@ -632,10 +620,10 @@ defineSuite([
         return Cesium3DTilesTester.loadTileset(scene, pointCloudRGBUrl).then(function(tileset) {
             var content = tileset._root.content;
             expect(function() {
-                content.applyStyleWithShader(scene.frameState, new Cesium3DTileStyle({
+                content.applyStyle(scene.frameState, new Cesium3DTileStyle({
                     show : '1 < "2"'
                 }));
-            }).toThrowDeveloperError();
+            }).toThrowRuntimeError();
         });
     });
 
@@ -648,7 +636,7 @@ defineSuite([
         ];
 
         // 1000 points
-        var expectedVertexMemory = [
+        var expectedGeometryMemory = [
             1000 * 12, // 3 floats (xyz)
             1000 * 15, // 3 floats (xyz), 3 bytes (rgb)
             1000 * 27, // 3 floats (xyz), 3 bytes (rgb), 3 floats (normal)
@@ -659,8 +647,8 @@ defineSuite([
             var length = tilesets.length;
             for (var i = 0; i < length; ++i) {
                 var content = tilesets[i]._root.content;
-                expect(content.vertexMemorySizeInBytes).toEqual(expectedVertexMemory[i]);
-                expect(content.textureMemorySizeInBytes).toEqual(0);
+                expect(content.geometryByteLength).toEqual(expectedGeometryMemory[i]);
+                expect(content.texturesByteLength).toEqual(0);
             }
         });
     });
@@ -671,38 +659,34 @@ defineSuite([
 
             // Point cloud consists of positions, colors, normals, and batchIds
             // 3 floats (xyz), 3 floats (normal), 1 byte (batchId)
-            var pointCloudVertexMemory = 1000 * 25;
+            var pointCloudGeometryMemory = 1000 * 25;
 
             // One RGBA byte pixel per feature
-            var batchTextureMemorySizeInBytes = content.featuresLength * 4;
-            var pickTextureMemorySizeInBytes = content.featuresLength * 4;
+            var batchTexturesByteLength = content.featuresLength * 4;
+            var pickTexturesByteLength = content.featuresLength * 4;
 
             // Features have not been picked or colored yet, so the batch table contribution is 0.
-            expect(content.vertexMemorySizeInBytes).toEqual(pointCloudVertexMemory);
-            expect(content.textureMemorySizeInBytes).toEqual(0);
-            expect(content.batchTableMemorySizeInBytes).toEqual(0);
+            expect(content.geometryByteLength).toEqual(pointCloudGeometryMemory);
+            expect(content.texturesByteLength).toEqual(0);
+            expect(content.batchTableByteLength).toEqual(0);
 
             // Color a feature and expect the texture memory to increase
             content.getFeature(0).color = Color.RED;
             scene.renderForSpecs();
-            expect(content.vertexMemorySizeInBytes).toEqual(pointCloudVertexMemory);
-            expect(content.textureMemorySizeInBytes).toEqual(0);
-            expect(content.batchTableMemorySizeInBytes).toEqual(batchTextureMemorySizeInBytes);
+            expect(content.geometryByteLength).toEqual(pointCloudGeometryMemory);
+            expect(content.texturesByteLength).toEqual(0);
+            expect(content.batchTableByteLength).toEqual(batchTexturesByteLength);
 
             // Pick the tile and expect the texture memory to increase
             scene.pickForSpecs();
-            expect(content.vertexMemorySizeInBytes).toEqual(pointCloudVertexMemory);
-            expect(content.textureMemorySizeInBytes).toEqual(0);
-            expect(content.batchTableMemorySizeInBytes).toEqual(batchTextureMemorySizeInBytes + pickTextureMemorySizeInBytes);
+            expect(content.geometryByteLength).toEqual(pointCloudGeometryMemory);
+            expect(content.texturesByteLength).toEqual(0);
+            expect(content.batchTableByteLength).toEqual(batchTexturesByteLength + pickTexturesByteLength);
         });
     });
 
     it('destroys', function() {
         return Cesium3DTilesTester.tileDestroys(scene, pointCloudRGBUrl);
-    });
-
-    it('destroys before loading finishes', function() {
-        return Cesium3DTilesTester.tileDestroysBeforeLoad(scene, pointCloudRGBUrl);
     });
 
 }, 'WebGL');

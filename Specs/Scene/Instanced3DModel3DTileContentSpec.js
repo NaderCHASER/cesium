@@ -1,4 +1,3 @@
-/*global defineSuite*/
 defineSuite([
         'Scene/Instanced3DModel3DTileContent',
         'Core/Cartesian3',
@@ -47,7 +46,7 @@ defineSuite([
     function setCamera(longitude, latitude) {
         // One instance is located at the center, point the camera there
         var center = Cartesian3.fromRadians(longitude, latitude);
-        scene.camera.lookAt(center, new HeadingPitchRange(0.0, -1.57, 30.0));
+        scene.camera.lookAt(center, new HeadingPitchRange(0.0, -1.57, 27.0));
     }
 
     beforeAll(function() {
@@ -67,31 +66,24 @@ defineSuite([
         scene.primitives.removeAll();
     });
 
-    it('throws with invalid magic', function() {
-        var arrayBuffer = Cesium3DTilesTester.generateInstancedTileBuffer({
-            magic : [120, 120, 120, 120]
-        });
-        return Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'i3dm');
-    });
-
     it('throws with invalid format', function() {
         var arrayBuffer = Cesium3DTilesTester.generateInstancedTileBuffer({
             gltfFormat : 2
         });
-        return Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'i3dm');
+        Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'i3dm');
     });
 
     it('throws with invalid version', function() {
         var arrayBuffer = Cesium3DTilesTester.generateInstancedTileBuffer({
             version : 2
         });
-        return Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'i3dm');
+        Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'i3dm');
     });
 
     it('throws with empty gltf', function() {
         // Expect to throw DeveloperError in Model due to invalid gltf magic
         var arrayBuffer = Cesium3DTilesTester.generateInstancedTileBuffer();
-        return Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'i3dm');
+        Cesium3DTilesTester.loadTileExpectError(scene, arrayBuffer, 'i3dm');
     });
 
     it('resolves readyPromise', function() {
@@ -107,38 +99,6 @@ defineSuite([
             gltfUri : 'not-a-real-path'
         });
         return Cesium3DTilesTester.rejectsReadyPromiseOnError(scene, arrayBuffer, 'i3dm');
-    });
-
-    it('rejects readyPromise on failed request', function() {
-        return Cesium3DTilesTester.rejectsReadyPromiseOnFailedRequest('i3dm');
-    });
-
-    var mockTile = {
-        contentBoundingVolume : new TileBoundingSphere(),
-        _header : {
-            content : {
-                boundingVolume : {
-                    sphere : [0.0, 0.0, 0.0, 1.0]
-                }
-            }
-        }
-    };
-
-    it('loads with no instances, but does not become ready', function() {
-        var arrayBuffer = Cesium3DTilesTester.generateInstancedTileBuffer({
-            featuresLength : 0,
-            gltfUri : '../Data/Models/Box/CesiumBoxTest.gltf'
-        });
-
-        var tileset = {};
-        var url = '';
-        var instancedTile = new Instanced3DModel3DTileContent(tileset, mockTile, url);
-        instancedTile.initialize(arrayBuffer);
-        // Expect the tile to never reach the ready state due to returning early in ModelInstanceCollection
-        for (var i = 0; i < 10; ++i) {
-            instancedTile.update(tileset, scene.frameState);
-            expect(instancedTile.state).toEqual(Cesium3DTileContentState.PROCESSING);
-        }
     });
 
     it('renders with external gltf', function() {
@@ -316,41 +276,37 @@ defineSuite([
 
             // Box model - 32 ushort indices and 24 vertices per building, 8 float components (position, normal, uv) per vertex.
             // (24 * 8 * 4) + (36 * 2) = 840
-            var vertexMemorySizeInBytes = 840;
+            var geometryByteLength = 840;
 
             // Texture is 211x211 RGBA bytes, but upsampled to 256x256 because the wrap mode is REPEAT
-            var textureMemorySizeInBytes = 262144;
+            var texturesByteLength = 262144;
 
             // One RGBA byte pixel per feature
-            var batchTextureMemorySizeInBytes = content.featuresLength * 4;
-            var pickTextureMemorySizeInBytes = content.featuresLength * 4;
+            var batchTexturesByteLength = content.featuresLength * 4;
+            var pickTexturesByteLength = content.featuresLength * 4;
 
             // Features have not been picked or colored yet, so the batch table contribution is 0.
-            expect(content.vertexMemorySizeInBytes).toEqual(vertexMemorySizeInBytes);
-            expect(content.textureMemorySizeInBytes).toEqual(textureMemorySizeInBytes);
-            expect(content.batchTableMemorySizeInBytes).toEqual(0);
+            expect(content.geometryByteLength).toEqual(geometryByteLength);
+            expect(content.texturesByteLength).toEqual(texturesByteLength);
+            expect(content.batchTableByteLength).toEqual(0);
 
             // Color a feature and expect the texture memory to increase
             content.getFeature(0).color = Color.RED;
             scene.renderForSpecs();
-            expect(content.vertexMemorySizeInBytes).toEqual(vertexMemorySizeInBytes);
-            expect(content.textureMemorySizeInBytes).toEqual(textureMemorySizeInBytes);
-            expect(content.batchTableMemorySizeInBytes).toEqual(batchTextureMemorySizeInBytes);
+            expect(content.geometryByteLength).toEqual(geometryByteLength);
+            expect(content.texturesByteLength).toEqual(texturesByteLength);
+            expect(content.batchTableByteLength).toEqual(batchTexturesByteLength);
 
             // Pick the tile and expect the texture memory to increase
             scene.pickForSpecs();
-            expect(content.vertexMemorySizeInBytes).toEqual(vertexMemorySizeInBytes);
-            expect(content.textureMemorySizeInBytes).toEqual(textureMemorySizeInBytes);
-            expect(content.batchTableMemorySizeInBytes).toEqual(batchTextureMemorySizeInBytes + pickTextureMemorySizeInBytes);
+            expect(content.geometryByteLength).toEqual(geometryByteLength);
+            expect(content.texturesByteLength).toEqual(texturesByteLength);
+            expect(content.batchTableByteLength).toEqual(batchTexturesByteLength + pickTexturesByteLength);
         });
     });
 
     it('destroys', function() {
         return Cesium3DTilesTester.tileDestroys(scene, withoutBatchTableUrl);
-    });
-
-    it('destroys before loading finishes', function() {
-        return Cesium3DTilesTester.tileDestroysBeforeLoad(scene, withoutBatchTableUrl);
     });
 
 }, 'WebGL');
