@@ -88,7 +88,7 @@ define([
         return program;
     }
 
-    TileRenderer.prototype.render = function(source, colors) {
+    TileRenderer.prototype.render = function(source, colors, paletteMinimum, paletteMaximum) {
         var gl = this._gl;
         var program = this._program;
 
@@ -140,8 +140,6 @@ define([
 
         var colorTableData = new Uint8Array(4096);
         var palette = [];
-        var max = null;
-        var min = null;
         var diff = null;
         var currentVal = 0;
         var currentValI = 0;
@@ -183,14 +181,6 @@ define([
                 palette[i].approach.blue = color[1][6];
                 palette[i].approach.alpha = color[1][7];
             }
-
-            if(index < min || min === null) {
-                min = parseFloat(index);
-            }
-
-            if(index > max || max === null) {
-                max = parseFloat(index);
-            }
         }
 
         var i;
@@ -198,9 +188,9 @@ define([
             setPalette(colors[i]);
         }
 
-        diff = Math.abs(max - min);
-        currentVal = min;
-        prevVal = min;
+        diff = Math.abs(paletteMaximum - paletteMinimum);
+        currentVal = parseFloat(paletteMinimum);
+        prevVal = parseFloat(paletteMinimum);
         var stepSize = diff / 1024;
 
         for(i = 16; i < 4096; i += 4) {
@@ -222,8 +212,8 @@ define([
                 prevColor[1] = palette[currentValI].approach.green;
                 prevColor[2] = palette[currentValI].approach.blue;
                 prevColor[3] = palette[currentValI].approach.alpha;
-                prevVal = max;
-                currentVal = max;
+                prevVal = paletteMaximum;
+                currentVal = paletteMaximum;
                 diffVal = 1.0;
                 nextColor[0] = palette[currentValI].approach.red;
                 nextColor[1] = palette[currentValI].approach.green;
