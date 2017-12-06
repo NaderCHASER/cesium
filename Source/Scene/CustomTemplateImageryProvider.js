@@ -201,6 +201,7 @@ define([
         this._readyPromise = undefined;
         this._tileRenderer = undefined;
         this._palette = undefined;
+        this._paletteAlt = undefined;
         this._paletteMinimum = undefined;
         this._paletteMaximum = undefined;
 
@@ -574,6 +575,7 @@ define([
 
             that._tileRenderer = defaultValue(properties.tileRenderer);
             that._palette = defaultValue(properties.palette);
+            that._paletteAlt = defaultValue(properties.paletteAlt, []);
             that._paletteMinimum = defaultValue(properties.paletteMinimum);
             that._paletteMaximum = defaultValue(properties.paletteMaximum);
 
@@ -635,7 +637,7 @@ define([
         var that = this;
         return when(imagePromise, function(image) {
             if (defined(image)) {
-                image = that._tileRenderer.render(image, that._palette, that._paletteMinimum, that._paletteMaximum);
+                image = that._tileRenderer.render(image, that._palette, that._paletteAlt, that._paletteMinimum, that._paletteMaximum);
             }
             return image;
         });
