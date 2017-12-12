@@ -573,11 +573,12 @@ define([
             that._rectangle = Rectangle.intersection(that._rectangle, that._tilingScheme.rectangle);
             that._hasAlphaChannel = defaultValue(properties.hasAlphaChannel, true);
 
-            that._tileRenderer = defaultValue(properties.tileRenderer);
             that._palette = defaultValue(properties.palette);
             that._paletteAlt = defaultValue(properties.paletteAlt, []);
-            that._paletteMinimum = defaultValue(properties.paletteMinimum);
-            that._paletteMaximum = defaultValue(properties.paletteMaximum);
+            that._paletteMinimum = defaultValue(properties.paletteMinimum, 0);
+            that._paletteMaximum = defaultValue(properties.paletteMaximum, 1);
+            that._tileRenderer = defaultValue(properties.tileRenderer);
+
 
             var credit = properties.credit;
             if (typeof credit === 'string') {
@@ -637,7 +638,7 @@ define([
         var that = this;
         return when(imagePromise, function(image) {
             if (defined(image)) {
-                image = that._tileRenderer.render(image, that._palette, that._paletteAlt, that._paletteMinimum, that._paletteMaximum);
+                image = that._tileRenderer.render(image);
             }
             return image;
         });
