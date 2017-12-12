@@ -248,7 +248,6 @@ define([
     }
 
     TileRenderer.prototype.render = function(source) {
-        var t0 = performance.now();
         var gl = this._gl;
         var program = this._program;
 
@@ -359,10 +358,6 @@ define([
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
         var clonedCanvas = cloneCanvas(gl.canvas);
-
-        var t1 = performance.now();
-
-        console.log('Took ' + (t1 - t0) + ' milliseconds.');
 
         return clonedCanvas;
     };
