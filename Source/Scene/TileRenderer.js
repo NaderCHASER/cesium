@@ -162,9 +162,16 @@ define([
             palette[i].takeoff.green = color[1][1];
             palette[i].takeoff.blue = color[1][2];
 
+
             var length = Object.keys(color[1]).length;
 
-            if(i > 0 && length <= 4) {
+            if(i == 0 && length <= 4) {
+                palette[i].takeoff.alpha = (typeof(color[1][3]) !== 'undefined' ? color[1][3] : 0);
+                palette[i].approach.red = color[1][0];
+                palette[i].approach.green = color[1][1];
+                palette[i].approach.blue = color[1][2];
+                palette[i].approach.alpha = (typeof(color[1][3]) !== 'undefined' ? color[1][3] : 0);
+            } else if(i > 0 && length <= 4) {
                 palette[i].takeoff.alpha = (typeof(color[1][3]) !== 'undefined' ? color[1][3] : 255);
                 palette[i].approach.red = color[1][0];
                 palette[i].approach.green = color[1][1];
@@ -238,93 +245,68 @@ define([
         var LUT2Texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, LUT2Texture);
 
-        var colorTableData = new Uint8Array(4096);
-        var palette = [];
-        var diff = null;
-        var currentVal = 0;
-        var currentValI = 0;
-        var prevVal = 0;
-        var diffVal = 1.0;
-        var nextColor = new Uint8Array(4);
-        var prevColor = new Uint8Array(4);
+        var colorTableData2 = new Uint8Array(4096);
 
-        function setPalette(color) {
-            var i = palette.length;
-            var index = color[0];
+        if(colors2.length > 0) {
+            var palette = [];
+            var diff = null;
+            var currentVal = 0;
+            var currentValI = 0;
+            var prevVal = 0;
+            var diffVal = 1.0;
+            var nextColor = new Uint8Array(4);
+            var prevColor = new Uint8Array(4);
 
-            palette[i] = [];
-            palette[i].takeoff = [];
-            palette[i].approach = [];
-            palette[i].value = parseFloat(index);
-
-            palette[i].takeoff.red = color[1][0];
-            palette[i].takeoff.green = color[1][1];
-            palette[i].takeoff.blue = color[1][2];
-
-            var length = Object.keys(color[1]).length;
-
-            if(i > 0 && length <= 4) {
-                palette[i].takeoff.alpha = (typeof(color[1][3]) !== 'undefined' ? color[1][3] : 255);
-                palette[i].approach.red = color[1][0];
-                palette[i].approach.green = color[1][1];
-                palette[i].approach.blue = color[1][2];
-                palette[i].approach.alpha = (typeof(color[1][3]) !== 'undefined' ? color[1][3] : 255);
-            } else if(i > 0 && length === 6) {
-                palette[i].takeoff.alpha = 255;
-                palette[i].approach.red = color[1][3];
-                palette[i].approach.green = color[1][4];
-                palette[i].approach.blue = color[1][5];
-            } else if(i > 0 && length === 8) {
-                palette[i].takeoff.alpha = color[1][3];
-                palette[i].approach.red = color[1][4];
-                palette[i].approach.green = color[1][5];
-                palette[i].approach.blue = color[1][6];
-                palette[i].approach.alpha = color[1][7];
+            var i;
+            for(i = 0; i < colors2.length; i++) {
+                setPalette(colors2[i]);
             }
-        }
 
-        var i;
-        for(i = 0; i < colors2.length; i++) {
-            setPalette(colors2[i]);
-        }
+            diff = Math.abs(paletteMaximum - paletteMinimum);
+            currentVal = parseFloat(paletteMinimum);
+            prevVal = parseFloat(paletteMinimum);
+            var stepSize = diff / 1024;
 
-        diff = Math.abs(paletteMaximum - paletteMinimum);
-        currentVal = parseFloat(paletteMinimum);
-        prevVal = parseFloat(paletteMinimum);
-        var stepSize = diff / 1024;
-
-        for(i = 16; i < 4096; i += 4) {
-            while (currentVal >= palette[currentValI].value && (currentValI+1) < palette.length) {
-              prevColor[0] = palette[currentValI].takeoff.red;
-              prevColor[1] = palette[currentValI].takeoff.green;
-              prevColor[2] = palette[currentValI].takeoff.blue;
-              prevColor[3] = palette[currentValI].takeoff.alpha;
-              prevVal = palette[currentValI].value;
-              currentValI++;
-              diffVal = palette[currentValI].value - prevVal;
-              nextColor[0] = palette[currentValI].approach.red;
-              nextColor[1] = palette[currentValI].approach.green;
-              nextColor[2] = palette[currentValI].approach.blue;
-              nextColor[3] = palette[currentValI].approach.alpha;
+            for(i = 16; i < 4096; i += 4) {
+                while (currentVal >= palette[currentValI].value && (currentValI+1) < palette.length) {
+                  prevColor[0] = palette[currentValI].takeoff.red;
+                  prevColor[1] = palette[currentValI].takeoff.green;
+                  prevColor[2] = palette[currentValI].takeoff.blue;
+                  prevColor[3] = palette[currentValI].takeoff.alpha;
+                  prevVal = palette[currentValI].value;
+                  currentValI++;
+                  diffVal = palette[currentValI].value - prevVal;
+                  nextColor[0] = palette[currentValI].approach.red;
+                  nextColor[1] = palette[currentValI].approach.green;
+                  nextColor[2] = palette[currentValI].approach.blue;
+                  nextColor[3] = palette[currentValI].approach.alpha;
+                }
+                if (currentVal >= palette[currentValI].value && (currentValI+1) >= palette.length) {
+                    prevColor[0] = palette[currentValI].approach.red;
+                    prevColor[1] = palette[currentValI].approach.green;
+                    prevColor[2] = palette[currentValI].approach.blue;
+                    prevColor[3] = palette[currentValI].approach.alpha;
+                    prevVal = paletteMaximum;
+                    currentVal = paletteMaximum;
+                    diffVal = 1.0;
+                    nextColor[0] = palette[currentValI].approach.red;
+                    nextColor[1] = palette[currentValI].approach.green;
+                    nextColor[2] = palette[currentValI].approach.blue;
+                    nextColor[3] = palette[currentValI].approach.alpha;
+                }
+                colorTableData2[i] = parseFloat(currentVal-prevVal) * (parseFloat(nextColor[0] - prevColor[0]) / diffVal) + prevColor[0];
+                colorTableData2[i+1] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[1] - prevColor[1]) / diffVal + prevColor[1];
+                colorTableData2[i+2] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[2] - prevColor[2]) / diffVal + prevColor[2];
+                colorTableData2[i+3] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[3] - prevColor[3]) / diffVal + prevColor[3];
+                currentVal += stepSize;
             }
-            if (currentVal >= palette[currentValI].value && (currentValI+1) >= palette.length) {
-                prevColor[0] = palette[currentValI].approach.red;
-                prevColor[1] = palette[currentValI].approach.green;
-                prevColor[2] = palette[currentValI].approach.blue;
-                prevColor[3] = palette[currentValI].approach.alpha;
-                prevVal = paletteMaximum;
-                currentVal = paletteMaximum;
-                diffVal = 1.0;
-                nextColor[0] = palette[currentValI].approach.red;
-                nextColor[1] = palette[currentValI].approach.green;
-                nextColor[2] = palette[currentValI].approach.blue;
-                nextColor[3] = palette[currentValI].approach.alpha;
+        } else {
+            for(i = 16; i < 4096; i += 4) {
+                colorTableData2[i] = 0;
+                colorTableData2[i+1] = 0;
+                colorTableData2[i+2] = 0;
+                colorTableData2[i+3] = 0;
             }
-            colorTableData[i] = parseFloat(currentVal-prevVal) * (parseFloat(nextColor[0] - prevColor[0]) / diffVal) + prevColor[0];
-            colorTableData[i+1] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[1] - prevColor[1]) / diffVal + prevColor[1];
-            colorTableData[i+2] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[2] - prevColor[2]) / diffVal + prevColor[2];
-            colorTableData[i+3] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[3] - prevColor[3]) / diffVal + prevColor[3];
-            currentVal += stepSize;
         }
 
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -332,7 +314,7 @@ define([
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1024, 0, gl.RGBA, gl.UNSIGNED_BYTE, colorTableData);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1024, 0, gl.RGBA, gl.UNSIGNED_BYTE, colorTableData2);
 
         gl.uniform1i(imageLocation, 0);
         gl.uniform1i(LUTLocation, 1);
