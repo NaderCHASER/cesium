@@ -20,6 +20,7 @@
          '../Core/loadArrayBuffer',
          '../Core/Math',
          '../Core/Rectangle',
+         '../Core/Resource',
          '../Core/WebMercatorTilingScheme',
          '../ThirdParty/when',
          './TileReplacementQueue'
@@ -44,6 +45,7 @@
          loadArrayBuffer,
          CesiumMath,
          Rectangle,
+         Resource,
          WebMercatorTilingScheme,
          when,
          TileReplacementQueue
@@ -270,7 +272,7 @@
             var index = (x + y + level) % this._subdomains.length;
             url = url.replace('{x}', x).replace('{y}', y).replace('{z}', level).replace('{k}', this._key).replace('{s}', this._subdomains[index]);
 
-            return loadArrayBuffer(url).then(function(arrayBuffer) {
+            return Resource.fetchArrayBuffer(url).then(function(arrayBuffer) {
                 var canvas = document.createElement('canvas');
                 canvas.width = that._tileWidth;
                 canvas.height = that._tileHeight;
