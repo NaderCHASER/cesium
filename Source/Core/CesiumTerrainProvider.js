@@ -68,7 +68,7 @@ define([
      * @constructor
      *
      * @param {Object} options Object with the following properties:
-     * @param {Resource|String} options.url The URL of the Cesium terrain server.
+     * @param {Resource|String|Promise<Resource>|Promise<String>} options.url The URL of the Cesium terrain server.
      * @param {Boolean} [options.requestVertexNormals=false] Flag that indicates if the client should request additional lighting information from the server, in the form of per vertex normals if available.
      * @param {Boolean} [options.requestWaterMask=false] Flag that indicates if the client should request per tile water masks from the server,  if available.
      * @param {Ellipsoid} [options.ellipsoid] The ellipsoid.  If not specified, the WGS84 ellipsoid is used.
@@ -112,11 +112,6 @@ define([
             deprecationWarning('CesiumTerrainProvider.proxy', 'The options.proxy parameter has been deprecated. Specify options.url as a Resource instance and set the proxy property there.');
         }
 
-        var resource = Resource.createIfNeeded(options.url, {
-            proxy: options.proxy
-        });
-        resource.appendForwardSlash();
-
         this._tilingScheme = new GeographicTilingScheme({
             numberOfLevelZeroTilesX : 2,
             numberOfLevelZeroTilesY : 1,
@@ -156,20 +151,38 @@ define([
 
         this._availability = undefined;
 
+        var deferred = when.defer();
         this._ready = false;
-        this._readyPromise = when.defer();
-
-        var lastResource = resource;
-        var metadataResource = lastResource.getDerivedResource({
-            url: 'layer.json'
-        });
+        this._readyPromise = deferred;
+        this._tileCredits = undefined;
 
         var that = this;
+        var lastResource;
+        var metadataResource;
         var metadataError;
 
         var layers = this._layers = [];
         var attribution = '';
         var overallAvailability = [];
+        when(options.url)
+            .then(function(url) {
+                var resource = Resource.createIfNeeded(url, {
+                    proxy: options.proxy
+                });
+                resource.appendForwardSlash();
+                lastResource = resource;
+                metadataResource = lastResource.getDerivedResource({
+                    url: 'layer.json'
+                });
+
+                // ion resources have a credits property we can use for additional attribution.
+                that._tileCredits = resource.credits;
+
+                requestMetadata();
+            })
+            .otherwise(function(e) {
+                deferred.reject(e);
+            });
 
         function parseMetadataSuccess(data) {
             var message;
@@ -343,11 +356,10 @@ define([
         }
 
         function requestMetadata() {
-            var metadata = metadataResource.fetchJson();
-            when(metadata, metadataSuccess, metadataFailure);
+            when(metadataResource.fetchJson())
+                .then(metadataSuccess)
+                .otherwise(metadataFailure);
         }
-
-        requestMetadata();
     }
 
     /**
@@ -397,7 +409,8 @@ define([
             waterMask : new Uint8Array(buffer, heightBuffer.byteLength + 1, buffer.byteLength - heightBuffer.byteLength - 1),
             width : provider._heightmapWidth,
             height : provider._heightmapWidth,
-            structure : provider._heightmapStructure
+            structure : provider._heightmapStructure,
+            credits: provider._tileCredits
         });
     }
 
@@ -542,7 +555,8 @@ define([
             eastSkirtHeight : skirtHeight,
             northSkirtHeight : skirtHeight,
             childTileMask: provider.availability.computeChildMaskForTile(level, x, y),
-            waterMask: waterMaskBuffer
+            waterMask: waterMaskBuffer,
+            credits: provider._tileCredits
         });
     }
 
