@@ -112,9 +112,10 @@ define([
             currentVal += stepSize;
         }
 
-        this._lut2 = new Uint8Array(4096);
+        this._lutSN = new Uint8Array(4096);
 
-        if(options.paletteAlt.length > 0) {
+        if(options.paletteSnow.length > 0) {
+            console.log('snow defined');
             var palette = [];
             var diff = null;
             var currentVal = 0;
@@ -125,8 +126,8 @@ define([
             var prevColor = new Uint8Array(4);
 
             var i;
-            for(i = 0; i < options.paletteAlt.length; i++) {
-                setPalette(options.paletteAlt[i]);
+            for(i = 0; i < options.paletteSnow.length; i++) {
+                setPalette(options.paletteSnow[i]);
             }
 
             diff = Math.abs(options.paletteMaximum - options.paletteMinimum);
@@ -161,18 +162,146 @@ define([
                     nextColor[2] = palette[currentValI].approach.blue;
                     nextColor[3] = palette[currentValI].approach.alpha;
                 }
-                this._lut2[i] = parseFloat(currentVal-prevVal) * (parseFloat(nextColor[0] - prevColor[0]) / diffVal) + prevColor[0];
-                this._lut2[i+1] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[1] - prevColor[1]) / diffVal + prevColor[1];
-                this._lut2[i+2] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[2] - prevColor[2]) / diffVal + prevColor[2];
-                this._lut2[i+3] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[3] - prevColor[3]) / diffVal + prevColor[3];
+                this._lutSN[i] = parseFloat(currentVal-prevVal) * (parseFloat(nextColor[0] - prevColor[0]) / diffVal) + prevColor[0];
+                this._lutSN[i+1] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[1] - prevColor[1]) / diffVal + prevColor[1];
+                this._lutSN[i+2] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[2] - prevColor[2]) / diffVal + prevColor[2];
+                this._lutSN[i+3] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[3] - prevColor[3]) / diffVal + prevColor[3];
                 currentVal += stepSize;
             }
         } else {
             for(i = 16; i < 4096; i += 4) {
-                this._lut2[i] = 0;
-                this._lut2[i+1] = 0;
-                this._lut2[i+2] = 0;
-                this._lut2[i+3] = 0;
+                this._lutSN[i] = 0;
+                this._lutSN[i+1] = 0;
+                this._lutSN[i+2] = 0;
+                this._lutSN[i+3] = 0;
+            }
+        }
+
+        this._lutIP = new Uint8Array(4096);
+
+        if(options.paletteIcep.length > 0) {
+            var palette = [];
+            var diff = null;
+            var currentVal = 0;
+            var currentValI = 0;
+            var prevVal = 0;
+            var diffVal = 1.0;
+            var nextColor = new Uint8Array(4);
+            var prevColor = new Uint8Array(4);
+
+            var i;
+            for(i = 0; i < options.paletteIcep.length; i++) {
+                setPalette(options.paletteIcep[i]);
+            }
+
+            diff = Math.abs(options.paletteMaximum - options.paletteMinimum);
+            currentVal = parseFloat(options.paletteMinimum);
+            prevVal = parseFloat(options.paletteMinimum);
+            var stepSize = diff / 1024;
+
+            for(i = 16; i < 4096; i += 4) {
+                while (currentVal >= palette[currentValI].value && (currentValI+1) < palette.length) {
+                  prevColor[0] = palette[currentValI].takeoff.red;
+                  prevColor[1] = palette[currentValI].takeoff.green;
+                  prevColor[2] = palette[currentValI].takeoff.blue;
+                  prevColor[3] = palette[currentValI].takeoff.alpha;
+                  prevVal = palette[currentValI].value;
+                  currentValI++;
+                  diffVal = palette[currentValI].value - prevVal;
+                  nextColor[0] = palette[currentValI].approach.red;
+                  nextColor[1] = palette[currentValI].approach.green;
+                  nextColor[2] = palette[currentValI].approach.blue;
+                  nextColor[3] = palette[currentValI].approach.alpha;
+                }
+                if (currentVal >= palette[currentValI].value && (currentValI+1) >= palette.length) {
+                    prevColor[0] = palette[currentValI].approach.red;
+                    prevColor[1] = palette[currentValI].approach.green;
+                    prevColor[2] = palette[currentValI].approach.blue;
+                    prevColor[3] = palette[currentValI].approach.alpha;
+                    prevVal = options.paletteMaximum;
+                    currentVal = options.paletteMaximum;
+                    diffVal = 1.0;
+                    nextColor[0] = palette[currentValI].approach.red;
+                    nextColor[1] = palette[currentValI].approach.green;
+                    nextColor[2] = palette[currentValI].approach.blue;
+                    nextColor[3] = palette[currentValI].approach.alpha;
+                }
+                this._lutIP[i] = parseFloat(currentVal-prevVal) * (parseFloat(nextColor[0] - prevColor[0]) / diffVal) + prevColor[0];
+                this._lutIP[i+1] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[1] - prevColor[1]) / diffVal + prevColor[1];
+                this._lutIP[i+2] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[2] - prevColor[2]) / diffVal + prevColor[2];
+                this._lutIP[i+3] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[3] - prevColor[3]) / diffVal + prevColor[3];
+                currentVal += stepSize;
+            }
+        } else {
+            for(i = 16; i < 4096; i += 4) {
+                this._lutIP[i] = 0;
+                this._lutIP[i+1] = 0;
+                this._lutIP[i+2] = 0;
+                this._lutIP[i+3] = 0;
+            }
+        }
+
+        this._lutZR = new Uint8Array(4096);
+
+        if(options.paletteFrzr.length > 0) {
+            var palette = [];
+            var diff = null;
+            var currentVal = 0;
+            var currentValI = 0;
+            var prevVal = 0;
+            var diffVal = 1.0;
+            var nextColor = new Uint8Array(4);
+            var prevColor = new Uint8Array(4);
+
+            var i;
+            for(i = 0; i < options.paletteFrzr.length; i++) {
+                setPalette(options.paletteFrzr[i]);
+            }
+
+            diff = Math.abs(options.paletteMaximum - options.paletteMinimum);
+            currentVal = parseFloat(options.paletteMinimum);
+            prevVal = parseFloat(options.paletteMinimum);
+            var stepSize = diff / 1024;
+
+            for(i = 16; i < 4096; i += 4) {
+                while (currentVal >= palette[currentValI].value && (currentValI+1) < palette.length) {
+                  prevColor[0] = palette[currentValI].takeoff.red;
+                  prevColor[1] = palette[currentValI].takeoff.green;
+                  prevColor[2] = palette[currentValI].takeoff.blue;
+                  prevColor[3] = palette[currentValI].takeoff.alpha;
+                  prevVal = palette[currentValI].value;
+                  currentValI++;
+                  diffVal = palette[currentValI].value - prevVal;
+                  nextColor[0] = palette[currentValI].approach.red;
+                  nextColor[1] = palette[currentValI].approach.green;
+                  nextColor[2] = palette[currentValI].approach.blue;
+                  nextColor[3] = palette[currentValI].approach.alpha;
+                }
+                if (currentVal >= palette[currentValI].value && (currentValI+1) >= palette.length) {
+                    prevColor[0] = palette[currentValI].approach.red;
+                    prevColor[1] = palette[currentValI].approach.green;
+                    prevColor[2] = palette[currentValI].approach.blue;
+                    prevColor[3] = palette[currentValI].approach.alpha;
+                    prevVal = options.paletteMaximum;
+                    currentVal = options.paletteMaximum;
+                    diffVal = 1.0;
+                    nextColor[0] = palette[currentValI].approach.red;
+                    nextColor[1] = palette[currentValI].approach.green;
+                    nextColor[2] = palette[currentValI].approach.blue;
+                    nextColor[3] = palette[currentValI].approach.alpha;
+                }
+                this._lutZR[i] = parseFloat(currentVal-prevVal) * (parseFloat(nextColor[0] - prevColor[0]) / diffVal) + prevColor[0];
+                this._lutZR[i+1] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[1] - prevColor[1]) / diffVal + prevColor[1];
+                this._lutZR[i+2] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[2] - prevColor[2]) / diffVal + prevColor[2];
+                this._lutZR[i+3] = parseFloat(currentVal-prevVal) * parseFloat(nextColor[3] - prevColor[3]) / diffVal + prevColor[3];
+                currentVal += stepSize;
+            }
+        } else {
+            for(i = 16; i < 4096; i += 4) {
+                this._lutZR[i] = 0;
+                this._lutZR[i+1] = 0;
+                this._lutZR[i+2] = 0;
+                this._lutZR[i+3] = 0;
             }
         }
 
@@ -262,7 +391,9 @@ define([
         var resolutionLocation = gl.getUniformLocation(program, "u_resolution");
         var imageLocation = gl.getUniformLocation(program, 'u_image');
         var LUTLocation = gl.getUniformLocation(program, 'u_lut');
-        var LUT2Location = gl.getUniformLocation(program, 'u_lut2');
+        var LUTSNLocation = gl.getUniformLocation(program, 'u_lutSN');
+        var LUTIPLocation = gl.getUniformLocation(program, 'u_lutIP');
+        var LUTZRLocation = gl.getUniformLocation(program, 'u_lutZR');
 
         // Create a buffer to put three 2d clip space points in
         var positionBuffer = gl.createBuffer();
@@ -305,26 +436,52 @@ define([
 
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1024, 0, gl.RGBA, gl.UNSIGNED_BYTE, this._lut);
 
-        var LUT2Texture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, LUT2Texture);
+        var LUTSNTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, LUTSNTexture);
 
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1024, 0, gl.RGBA, gl.UNSIGNED_BYTE, this._lut2);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1024, 0, gl.RGBA, gl.UNSIGNED_BYTE, this._lutSN);
+
+        var LUTIPTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, LUTIPTexture);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1024, 0, gl.RGBA, gl.UNSIGNED_BYTE, this._lutIP);
+
+        var LUTZRTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, LUTZRTexture);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1024, 0, gl.RGBA, gl.UNSIGNED_BYTE, this._lutZR);
 
         gl.uniform1i(imageLocation, 0);
         gl.uniform1i(LUTLocation, 1);
-        gl.uniform1i(LUT2Location, 2);
+        gl.uniform1i(LUTSNLocation, 2);
+        gl.uniform1i(LUTIPLocation, 3);
+        gl.uniform1i(LUTZRLocation, 4);
 
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, imageTexture);
         gl.activeTexture(gl.TEXTURE1);
         gl.bindTexture(gl.TEXTURE_2D, LUTTexture);
         gl.activeTexture(gl.TEXTURE2);
-        gl.bindTexture(gl.TEXTURE_2D, LUT2Texture);
+        gl.bindTexture(gl.TEXTURE_2D, LUTSNTexture);
+        gl.activeTexture(gl.TEXTURE3);
+        gl.bindTexture(gl.TEXTURE_2D, LUTIPTexture);
+        gl.activeTexture(gl.TEXTURE4);
+        gl.bindTexture(gl.TEXTURE_2D, LUTZRTexture);
 
         // Tell WebGL how to convert from clip space to pixels
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);

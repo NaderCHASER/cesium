@@ -3,7 +3,9 @@ precision mediump float;
 // our texture
 uniform sampler2D u_image;
 uniform sampler2D u_lut;
-uniform sampler2D u_lut2;
+uniform sampler2D u_lutSN;
+uniform sampler2D u_lutIP;
+uniform sampler2D u_lutZR;
 
 // the texCoords passed in from the vertex shader.
 varying vec2 v_texCoord;
@@ -25,21 +27,14 @@ void main() {
     }
 
     float b1 = texture2D(u_image, v_texCoord).g;
-    float b2 = texture2D(u_image, v_texCoord + vec2(step, 0.0)).g;
-    float b3 = texture2D(u_image, v_texCoord + vec2(0.0, step)).g;
-    float b4 = texture2D(u_image, v_texCoord + vec2(step, step)).g;
-
-    if ((b1 != 0.0 && (b2 == 0.0 || b3 == 0.0 || b4 == 0.0)) || b1 == 0.0) {
-    } else {
-      vec2 f = fract(v_texCoord * vec2(1024.0, 1024.0));
-      float tA = mix(b1, b2, f.x);
-      float tB = mix(b3, b4, f.x);
-      b1 = mix(tA, tB, f.y);
-    }
 
     vec4 pixColor = texture2D(u_lut, vec2(0.0, a1));
-    if (b1 >= 0.0117 && b1 <= 0.0156) {
-        pixColor = texture2D(u_lut2, vec2(0.0, a1));
+    if ((b1 * 255.0) == 3.0 || (b1 * 255.0) == 10.0) {
+        pixColor = texture2D(u_lutSN, vec2(0.0, a1));
+    } else if ((b1 * 255.0) == 40.0 || (b1 * 255.0) == 50.0) {
+        pixColor = texture2D(u_lutIP, vec2(0.0, a1));
+    } else if ((b1 * 255.0) == 20.0) {
+        pixColor = texture2D(u_lutZR, vec2(0.0, a1));
     }
 
     gl_FragColor = pixColor;

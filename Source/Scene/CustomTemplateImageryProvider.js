@@ -201,7 +201,9 @@ define([
         this._readyPromise = undefined;
         this._tileRenderer = undefined;
         this._palette = undefined;
-        this._paletteAlt = undefined;
+        this._paletteSnow = undefined;
+        this._paletteIcep = undefined;
+        this._paletteFrzr = undefined;
         this._paletteMinimum = undefined;
         this._paletteMaximum = undefined;
 
@@ -574,7 +576,9 @@ define([
             that._hasAlphaChannel = defaultValue(properties.hasAlphaChannel, true);
 
             that._palette = defaultValue(properties.palette);
-            that._paletteAlt = defaultValue(properties.paletteAlt, []);
+            that._paletteSnow = defaultValue(properties.paletteSnow, []);
+            that._paletteIcep = defaultValue(properties.paletteIcep, []);
+            that._paletteFrzr = defaultValue(properties.paletteFrzr, []);
             that._paletteMinimum = defaultValue(properties.paletteMinimum, 0);
             that._paletteMaximum = defaultValue(properties.paletteMaximum, 1);
             that._tileRenderer = defaultValue(properties.tileRenderer);
