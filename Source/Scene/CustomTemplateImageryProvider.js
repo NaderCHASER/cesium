@@ -1,25 +1,21 @@
-/*global define*/
 define([
         '../Core/Cartesian2',
         '../Core/Cartesian3',
         '../Core/Cartographic',
+        '../Core/clone',
         '../Core/combine',
         '../Core/Credit',
         '../Core/defaultValue',
         '../Core/defined',
         '../Core/defineProperties',
+        '../Core/deprecationWarning',
         '../Core/DeveloperError',
         '../Core/Event',
-        '../Core/freezeObject',
         '../Core/GeographicTilingScheme',
         '../Core/isArray',
-        '../Core/loadJson',
-        '../Core/loadText',
-        '../Core/loadWithXhr',
-        '../Core/loadXML',
         '../Core/Math',
         '../Core/Rectangle',
-        '../Core/TileProviderError',
+        '../Core/Resource',
         '../Core/WebMercatorTilingScheme',
         '../ThirdParty/when',
         './ImageryProvider'
@@ -27,28 +23,58 @@ define([
         Cartesian2,
         Cartesian3,
         Cartographic,
+        clone,
         combine,
         Credit,
         defaultValue,
         defined,
         defineProperties,
+        deprecationWarning,
         DeveloperError,
         Event,
-        freezeObject,
         GeographicTilingScheme,
         isArray,
-        loadJson,
-        loadText,
-        loadWithXhr,
-        loadXML,
         CesiumMath,
         Rectangle,
-        TileProviderError,
+        Resource,
         WebMercatorTilingScheme,
         when,
-        ImageryProvider
-    ) {
+        ImageryProvider) {
     'use strict';
+
+    var templateRegex = /{[^}]+}/g;
+
+    var tags = {
+        'x': xTag,
+        'y': yTag,
+        'z': zTag,
+        's': sTag,
+        'reverseX': reverseXTag,
+        'reverseY': reverseYTag,
+        'reverseZ': reverseZTag,
+        'westDegrees': westDegreesTag,
+        'southDegrees': southDegreesTag,
+        'eastDegrees': eastDegreesTag,
+        'northDegrees': northDegreesTag,
+        'westProjected': westProjectedTag,
+        'southProjected': southProjectedTag,
+        'eastProjected': eastProjectedTag,
+        'northProjected': northProjectedTag,
+        'width': widthTag,
+        'height': heightTag
+    };
+
+    var pickFeaturesTags = combine(tags, {
+        'i' : iTag,
+        'j' : jTag,
+        'reverseI' : reverseITag,
+        'reverseJ' : reverseJTag,
+        'longitudeDegrees' : longitudeDegreesTag,
+        'latitudeDegrees' : latitudeDegreesTag,
+        'longitudeProjected' : longitudeProjectedTag,
+        'latitudeProjected' : latitudeProjectedTag,
+        'format' : formatTag
+    });
 
     /**
      * Provides imagery by requesting tiles using a specified URL template.
@@ -57,7 +83,7 @@ define([
      * @constructor
      *
      * @param {Promise.<Object>|Object} [options] Object with the following properties:
-     * @param {String} options.url  The URL template to use to request tiles.  It has the following keywords:
+     * @param {Resource|String} options.url  The URL template to use to request tiles.  It has the following keywords:
      * <ul>
      *     <li><code>{z}</code>: The level of the tile in the tiling scheme.  Level zero is the root of the quadtree pyramid.</li>
      *     <li><code>{x}</code>: The tile X coordinate in the tiling scheme, where 0 is the Westernmost tile.</li>
@@ -77,7 +103,7 @@ define([
      *     <li><code>{width}</code>: The width of each tile in pixels.</li>
      *     <li><code>{height}</code>: The height of each tile in pixels.</li>
      * </ul>
-     * @param {String} [options.pickFeaturesUrl] The URL template to use to pick features.  If this property is not specified,
+     * @param {Resource|String} [options.pickFeaturesUrl] The URL template to use to pick features.  If this property is not specified,
      *                 {@link CustomTemplateImageryProvider#pickFeatures} will immediately returned undefined, indicating no
      *                 features picked.  The URL template supports all of the keywords supported by the <code>url</code>
      *                 parameter, plus the following:
@@ -108,7 +134,6 @@ define([
      * @param {String|String[]} [options.subdomains='abc'] The subdomains to use for the <code>{s}</code> placeholder in the URL template.
      *                          If this parameter is a single string, each character in the string is a subdomain.  If it is
      *                          an array, each element in the array is a subdomain.
-     * @param {Object} [options.proxy] A proxy to use for requests. This object is expected to have a getURL function which returns the proxied URL.
      * @param {Credit|String} [options.credit=''] A credit for the data source, which is displayed on the canvas.
      * @param {Number} [options.minimumLevel=0] The minimum level-of-detail supported by the imagery provider.  Take care when specifying
      *                 this that the number of tiles at the minimum level is small, such as four or less.  A larger number is likely
@@ -138,6 +163,7 @@ define([
      *        source does not support picking features or if you don't want this provider's features to be pickable. Note
      *        that this can be dynamically overridden by modifying the {@link UriTemplateImageryProvider#enablePickFeatures}
      *        property.
+     * @param {Object} [options.customTags] Allow to replace custom keywords in the URL template. The object must have strings as keys and functions as values.
      *
      *
      * @example
@@ -163,10 +189,19 @@ define([
      *          'width=256&height=256',
      *    rectangle : Cesium.Rectangle.fromDegrees(96.799393, -43.598214999057824, 153.63925700000001, -9.2159219997013)
      * });
+     * // Using custom tags in your template url.
+     * var custom = new Cesium.CustomTemplateImageryProvider({
+     *    url : 'https://yoururl/{Time}/{z}/{y}/{x}.png',
+     *    customTags : {
+     *        Time: function(imageryProvider, x, y, level) {
+     *            return '20171231'
+     *        }
+     *    }
+     * });
      *
      * @see ArcGisMapServerImageryProvider
      * @see BingMapsImageryProvider
-     * @see GoogleEarthImageryProvider
+     * @see GoogleEarthEnterpriseMapsProvider
      * @see createOpenStreetMapImageryProvider
      * @see SingleTileImageryProvider
      * @see createTileMapServiceImageryProvider
@@ -185,10 +220,9 @@ define([
 
         this._errorEvent = new Event();
 
-        this._url = undefined;
+        this._resource = undefined;
         this._urlSchemeZeroPadding = undefined;
-        this._pickFeaturesUrl = undefined;
-        this._proxy = undefined;
+        this._pickFeaturesResource = undefined;
         this._tileWidth = undefined;
         this._tileHeight = undefined;
         this._maximumLevel = undefined;
@@ -206,6 +240,8 @@ define([
         this._paletteFrzr = undefined;
         this._paletteMinimum = undefined;
         this._paletteMaximum = undefined;
+        this._tags = undefined;
+        this._pickFeaturesTags = undefined;
 
         /**
          * Gets or sets a value indicating whether feature picking is enabled.  If true, {@link CustomTemplateImageryProvider#pickFeatures} will
@@ -249,7 +285,7 @@ define([
          */
         url : {
             get : function() {
-                return this._url;
+                return this._resource.url;
             }
         },
 
@@ -277,7 +313,6 @@ define([
             }
         },
 
-
         /**
          * Gets the URL template to use to use to pick features.  If this property is not specified,
          * {@link CustomTemplateImageryProvider#pickFeatures} will immediately returned undefined, indicating no
@@ -294,12 +329,13 @@ define([
          *     <li><code>{latitudeProjected}</code>: The latitude of the picked position in the projected coordinates of the tiling scheme.</li>
          *     <li><code>{format}</code>: The format in which to get feature information, as specified in the {@link GetFeatureInfoFormat}.</li>
          * </ul>
+         * @memberof CustomTemplateImageryProvider.prototype
          * @type {String}
          * @readonly
          */
         pickFeaturesUrl : {
             get : function() {
-                return this._pickFeaturesUrl;
+                return this._pickFeaturesResource.url;
             }
         },
 
@@ -312,7 +348,7 @@ define([
          */
         proxy : {
             get : function() {
-                return this._proxy;
+                return this._resource.proxy;
             }
         },
 
@@ -473,7 +509,7 @@ define([
          */
         ready : {
             get : function() {
-                return defined(this._urlParts);
+                return defined(this._resource);
             }
         },
 
@@ -549,11 +585,25 @@ define([
                 throw new DeveloperError('options.url is required.');
             }
             //>>includeEnd('debug');
+
+            if (defined(options.proxy)) {
+                deprecationWarning('CustomTemplateImageryProvider.proxy', 'The options.proxy parameter has been deprecated. Specify options.url as a Resource instance and set the proxy property there.');
+            }
+
+            var customTags = properties.customTags;
+            var allTags = combine(tags, customTags);
+            var allPickFeaturesTags = combine(pickFeaturesTags, customTags);
+
+            var resource = Resource.createIfNeeded(properties.url, {
+                proxy: properties.proxy
+            });
+
+            var pickFeaturesResource = Resource.createIfNeeded(properties.pickFeaturesUrl, {
+                proxy: properties.proxy
+            });
+
             that.enablePickFeatures = defaultValue(properties.enablePickFeatures, that.enablePickFeatures);
-            that._url = properties.url;
             that._urlSchemeZeroPadding = defaultValue(properties.urlSchemeZeroPadding, that.urlSchemeZeroPadding);
-            that._pickFeaturesUrl = properties.pickFeaturesUrl;
-            that._proxy = properties.proxy;
             that._tileDiscardPolicy = properties.tileDiscardPolicy;
             that._getFeatureInfoFormats = properties.getFeatureInfoFormats;
 
@@ -583,15 +633,17 @@ define([
             that._paletteMaximum = defaultValue(properties.paletteMaximum, 1);
             that._tileRenderer = defaultValue(properties.tileRenderer);
 
-
             var credit = properties.credit;
             if (typeof credit === 'string') {
-                credit = new Credit(credit);
+                credit = new Credit({text: credit});
             }
             that._credit = credit;
 
-            that._urlParts = urlTemplateToParts(that._url, tags);
-            that._pickFeaturesUrlParts = urlTemplateToParts(that._pickFeaturesUrl, pickFeaturesTags);
+            that._resource = resource;
+            that._tags = allTags;
+            that._pickFeaturesResource = pickFeaturesResource;
+            that._pickFeaturesTags = allPickFeaturesTags;
+
             return true;
         });
     };
@@ -622,19 +674,20 @@ define([
      * @param {Number} x The tile X coordinate.
      * @param {Number} y The tile Y coordinate.
      * @param {Number} level The tile level.
+     * @param {Request} [request] The request object. Intended for internal use only.
      * @returns {Promise.<Image|Canvas>|undefined} A promise for the image that will resolve when the image is available, or
      *          undefined if there are too many active requests to the server, and the request
      *          should be retried later.  The resolved image may be either an
      *          Image or a Canvas DOM object.
      */
-    CustomTemplateImageryProvider.prototype.requestImage = function(x, y, level) {
+    CustomTemplateImageryProvider.prototype.requestImage = function(x, y, level, request) {
         //>>includeStart('debug', pragmas.debug);
         if (!this.ready) {
             throw new DeveloperError('requestImage must not be called before the imagery provider is ready.');
         }
         //>>includeEnd('debug');
-        var url = buildImageUrl(this, x, y, level);
-        var imagePromise = ImageryProvider.loadImage(this, url);
+        var imagePromise = ImageryProvider.loadImage(this, buildImageResource(this, x, y, level, request));
+
         if(!defined(imagePromise)) {
             return imagePromise;
         }
@@ -669,7 +722,7 @@ define([
         }
         //>>includeEnd('debug');
 
-        if (!this.enablePickFeatures || !defined(this._pickFeaturesUrl) || this._getFeatureInfoFormats.length === 0) {
+        if (!this.enablePickFeatures || !defined(this._pickFeaturesResource) || this._getFeatureInfoFormats.length === 0) {
             return undefined;
         }
 
@@ -688,103 +741,82 @@ define([
             }
 
             var format = that._getFeatureInfoFormats[formatIndex];
-            var url = buildPickFeaturesUrl(that, x, y, level, longitude, latitude, format.format);
+            var resource = buildPickFeaturesResource(that, x, y, level, longitude, latitude, format.format);
 
             ++formatIndex;
 
             if (format.type === 'json') {
-                return loadJson(url).then(format.callback).otherwise(doRequest);
+                return resource.fetchJson().then(format.callback).otherwise(doRequest);
             } else if (format.type === 'xml') {
-                return loadXML(url).then(format.callback).otherwise(doRequest);
+                return resource.fetchXML().then(format.callback).otherwise(doRequest);
             } else if (format.type === 'text' || format.type === 'html') {
-                return loadText(url).then(format.callback).otherwise(doRequest);
-            } else {
-                return loadWithXhr({
-                    url: url,
-                    responseType: format.format
-                }).then(handleResponse.bind(undefined, format)).otherwise(doRequest);
+                return resource.fetchText().then(format.callback).otherwise(doRequest);
             }
+            return resource.fetch({
+                responseType: format.format
+            }).then(handleResponse.bind(undefined, format)).otherwise(doRequest);
         }
 
         return doRequest();
     };
 
-    function buildImageUrl(imageryProvider, x, y, level) {
+    var degreesScratchComputed = false;
+    var degreesScratch = new Rectangle();
+    var projectedScratchComputed = false;
+    var projectedScratch = new Rectangle();
+
+    function buildImageResource(imageryProvider, x, y, level, request) {
         degreesScratchComputed = false;
         projectedScratchComputed = false;
 
-        return buildUrl(imageryProvider, imageryProvider._urlParts, function(partFunction) {
-            return partFunction(imageryProvider, x, y, level);
+        var resource = imageryProvider._resource;
+        var url = resource.getUrlComponent(true);
+        var allTags = imageryProvider._tags;
+        var templateValues = {};
+
+        var match = url.match(templateRegex);
+        if (defined(match)) {
+            match.forEach(function(tag) {
+                var key = tag.substring(1, tag.length - 1); //strip {}
+                if (defined(allTags[key])) {
+                    templateValues[key] = allTags[key](imageryProvider, x, y, level);
+                }
+            });
+        }
+
+        return resource.getDerivedResource({
+            request: request,
+            templateValues: templateValues
         });
     }
 
-    function buildPickFeaturesUrl(imageryProvider, x, y, level, longitude, latitude, format) {
+    var ijScratchComputed = false;
+    var ijScratch = new Cartesian2();
+    var longitudeLatitudeProjectedScratchComputed = false;
+
+    function buildPickFeaturesResource(imageryProvider, x, y, level, longitude, latitude, format) {
         degreesScratchComputed = false;
         projectedScratchComputed = false;
         ijScratchComputed = false;
         longitudeLatitudeProjectedScratchComputed = false;
 
-        return buildUrl(imageryProvider, imageryProvider._pickFeaturesUrlParts, function(partFunction) {
-            return partFunction(imageryProvider, x, y, level, longitude, latitude, format);
+        var resource = imageryProvider._pickFeaturesResource;
+        var url = resource.getUrlComponent(true);
+        var allTags = imageryProvider._pickFeaturesTags;
+        var templateValues = {};
+        var match = url.match(templateRegex);
+        if (defined(match)) {
+            match.forEach(function(tag) {
+                var key = tag.substring(1, tag.length - 1); //strip {}
+                if (defined(allTags[key])) {
+                    templateValues[key] = allTags[key](imageryProvider, x, y, level, longitude, latitude, format);
+                }
+            });
+        }
+
+        return resource.getDerivedResource({
+            templateValues: templateValues
         });
-    }
-
-    function buildUrl(imageryProvider, parts, partFunctionInvoker) {
-        var url = '';
-
-        for (var i = 0; i < parts.length; ++i) {
-            var part = parts[i];
-            if (typeof part === 'string') {
-                url += part;
-            } else {
-                url += encodeURIComponent(partFunctionInvoker(part));
-            }
-        }
-
-        var proxy = imageryProvider._proxy;
-        if (defined(proxy)) {
-            url = proxy.getURL(url);
-        }
-
-        return url;
-    }
-
-    function urlTemplateToParts(url, tags) {
-        if (!defined(url)) {
-            return undefined;
-        }
-
-        var parts = [];
-        var nextIndex = 0;
-        var minIndex;
-        var minTag;
-        var tagList = Object.keys(tags);
-
-        while (nextIndex < url.length) {
-            minIndex = Number.MAX_VALUE;
-            minTag = undefined;
-
-            for (var i = 0; i < tagList.length; ++i) {
-                var thisIndex = url.indexOf(tagList[i], nextIndex);
-                if (thisIndex >= 0 && thisIndex < minIndex) {
-                    minIndex = thisIndex;
-                    minTag = tagList[i];
-                }
-            }
-
-            if (!defined(minTag)) {
-                parts.push(url.substring(nextIndex));
-                nextIndex = url.length;
-            } else {
-                if (nextIndex < minIndex) {
-                    parts.push(url.substring(nextIndex, minIndex));
-                }
-                parts.push(tags[minTag]);
-                nextIndex = minIndex + minTag.length;
-            }
-        }
-
-        return parts;
     }
 
     function padWithZerosIfNecessary(imageryProvider, key, value) {
@@ -836,9 +868,6 @@ define([
         return imageryProvider._subdomains[index];
     }
 
-    var degreesScratchComputed = false;
-    var degreesScratch = new Rectangle();
-
     function computeDegrees(imageryProvider, x, y, level) {
         if (degreesScratchComputed) {
             return;
@@ -872,9 +901,6 @@ define([
         computeDegrees(imageryProvider, x, y, level);
         return degreesScratch.north;
     }
-
-    var projectedScratchComputed = false;
-    var projectedScratch = new Rectangle();
 
     function computeProjected(imageryProvider, x, y, level) {
         if (projectedScratchComputed) {
@@ -914,9 +940,6 @@ define([
         return imageryProvider.tileHeight;
     }
 
-    var ijScratchComputed = false;
-    var ijScratch = new Cartesian2();
-
     function iTag(imageryProvider, x, y, level, longitude, latitude, format) {
         computeIJ(imageryProvider, x, y, level, longitude, latitude);
         return ijScratch.x;
@@ -938,6 +961,7 @@ define([
     }
 
     var rectangleScratch = new Rectangle();
+    var longitudeLatitudeProjectedScratch = new Cartesian3();
 
     function computeIJ(imageryProvider, x, y, level, longitude, latitude, format) {
         if (ijScratchComputed) {
@@ -961,9 +985,6 @@ define([
         return CesiumMath.toDegrees(latitude);
     }
 
-    var longitudeLatitudeProjectedScratchComputed = false;
-    var longitudeLatitudeProjectedScratch = new Cartesian3();
-
     function longitudeProjectedTag(imageryProvider, x, y, level, longitude, latitude, format) {
         computeLongitudeLatitudeProjected(imageryProvider, x, y, level, longitude, latitude);
         return longitudeLatitudeProjectedScratch.x;
@@ -981,7 +1002,6 @@ define([
             return;
         }
 
-        var projected;
         if (imageryProvider.tilingScheme instanceof GeographicTilingScheme) {
             longitudeLatitudeProjectedScratch.x = CesiumMath.toDegrees(longitude);
             longitudeLatitudeProjectedScratch.y = CesiumMath.toDegrees(latitude);
@@ -989,53 +1009,15 @@ define([
             var cartographic = cartographicScratch;
             cartographic.longitude = longitude;
             cartographic.latitude = latitude;
-            projected = imageryProvider.tilingScheme.projection.project(cartographic, longitudeLatitudeProjectedScratch);
+            imageryProvider.tilingScheme.projection.project(cartographic, longitudeLatitudeProjectedScratch);
         }
 
         longitudeLatitudeProjectedScratchComputed = true;
     }
 
-    function getCanvas(imageryProvider, img) {
-        var canvas = img.canvas;
-
-        return canvas;
-    }
-
     function formatTag(imageryProvider, x, y, level, longitude, latitude, format) {
         return format;
     }
-
-    var tags = {
-        '{x}': xTag,
-        '{y}': yTag,
-        '{z}': zTag,
-        '{s}': sTag,
-        '{reverseX}': reverseXTag,
-        '{reverseY}': reverseYTag,
-        '{reverseZ}': reverseZTag,
-        '{westDegrees}': westDegreesTag,
-        '{southDegrees}': southDegreesTag,
-        '{eastDegrees}': eastDegreesTag,
-        '{northDegrees}': northDegreesTag,
-        '{westProjected}': westProjectedTag,
-        '{southProjected}': southProjectedTag,
-        '{eastProjected}': eastProjectedTag,
-        '{northProjected}': northProjectedTag,
-        '{width}': widthTag,
-        '{height}': heightTag
-    };
-
-    var pickFeaturesTags = combine(tags, {
-        '{i}' : iTag,
-        '{j}' : jTag,
-        '{reverseI}' : reverseITag,
-        '{reverseJ}' : reverseJTag,
-        '{longitudeDegrees}' : longitudeDegreesTag,
-        '{latitudeDegrees}' : latitudeDegreesTag,
-        '{longitudeProjected}' : longitudeProjectedTag,
-        '{latitudeProjected}' : latitudeProjectedTag,
-        '{format}' : formatTag
-    });
 
     return CustomTemplateImageryProvider;
 });
