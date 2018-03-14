@@ -115,7 +115,6 @@ define([
         this._lutSN = new Uint8Array(4096);
 
         if(options.paletteSnow.length > 0) {
-            console.log('snow defined');
             var palette = [];
             var diff = null;
             var currentVal = 0;
