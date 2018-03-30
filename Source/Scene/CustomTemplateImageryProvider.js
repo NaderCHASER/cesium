@@ -860,7 +860,7 @@ define([
     }
 
     function zTag(imageryProvider, x, y, level) {
-        return padWithZerosIfNecessary(imageryProvider, '{z}', level);
+        return padWithZerosIfNecessary(imageryProvider, '{z}', level - 1);
     }
 
     function sTag(imageryProvider, x, y, level) {
