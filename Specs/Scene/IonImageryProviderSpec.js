@@ -1,45 +1,45 @@
 defineSuite([
-    'Scene/IonImageryProvider',
-    'Core/IonResource',
-    'Core/Credit',
-    'Core/defaultValue',
-    'Core/RequestScheduler',
-    'Core/Resource',
-    'Core/RuntimeError',
-    'Scene/ArcGisMapServerImageryProvider',
-    'Scene/BingMapsImageryProvider',
-    'Scene/GoogleEarthEnterpriseMapsProvider',
-    'Scene/ImageryProvider',
-    'Scene/MapboxImageryProvider',
-    'Scene/SingleTileImageryProvider',
-    'Scene/UrlTemplateImageryProvider',
-    'Scene/WebMapServiceImageryProvider',
-    'Scene/WebMapTileServiceImageryProvider',
-    'ThirdParty/when'
-], function(
-    IonImageryProvider,
-    IonResource,
-    Credit,
-    defaultValue,
-    RequestScheduler,
-    Resource,
-    RuntimeError,
-    ArcGisMapServerImageryProvider,
-    BingMapsImageryProvider,
-    GoogleEarthEnterpriseMapsProvider,
-    ImageryProvider,
-    MapboxImageryProvider,
-    SingleTileImageryProvider,
-    UrlTemplateImageryProvider,
-    WebMapServiceImageryProvider,
-    WebMapTileServiceImageryProvider,
-    when) {
+        'Scene/IonImageryProvider',
+        'Core/Credit',
+        'Core/defaultValue',
+        'Core/IonResource',
+        'Core/RequestScheduler',
+        'Core/Resource',
+        'Core/RuntimeError',
+        'Scene/ArcGisMapServerImageryProvider',
+        'Scene/BingMapsImageryProvider',
+        'Scene/GoogleEarthEnterpriseMapsProvider',
+        'Scene/ImageryProvider',
+        'Scene/MapboxImageryProvider',
+        'Scene/SingleTileImageryProvider',
+        'Scene/UrlTemplateImageryProvider',
+        'Scene/WebMapServiceImageryProvider',
+        'Scene/WebMapTileServiceImageryProvider',
+        'ThirdParty/when'
+    ], function(
+        IonImageryProvider,
+        Credit,
+        defaultValue,
+        IonResource,
+        RequestScheduler,
+        Resource,
+        RuntimeError,
+        ArcGisMapServerImageryProvider,
+        BingMapsImageryProvider,
+        GoogleEarthEnterpriseMapsProvider,
+        ImageryProvider,
+        MapboxImageryProvider,
+        SingleTileImageryProvider,
+        UrlTemplateImageryProvider,
+        WebMapServiceImageryProvider,
+        WebMapTileServiceImageryProvider,
+        when) {
     'use strict';
 
     function createTestProvider(endpointData) {
         endpointData = defaultValue(endpointData, {
             type: 'IMAGERY',
-            url: 'https://test.invalid/layer',
+            url: 'http://test.invalid/layer',
             accessToken: 'not_really_a_refresh_token',
             attributions: []
         });
@@ -74,7 +74,7 @@ defineSuite([
     it('readyPromise rejects with non-imagery asset', function(done) {
         var provider = createTestProvider({
             type: '3DTILES',
-            url: 'https://test.invalid/layer',
+            url: 'http://test.invalid/layer',
             accessToken: 'not_really_a_refresh_token',
             attributions: []
         });
@@ -93,7 +93,7 @@ defineSuite([
         var provider = createTestProvider({
             type: 'IMAGERY',
             externalType: 'TUBELCANE',
-            options: { url: 'https://test.invalid/layer' },
+            options: { url: 'http://test.invalid/layer' },
             attributions: []
         });
 
@@ -151,7 +151,7 @@ defineSuite([
                 });
             })
             .then(function() {
-                var innerCredit = new Credit({ text: 'Data provided' });
+                var innerCredit = new Credit('Data provided');
                 spyOn(internalProvider, 'getTileCredits').and.returnValue([innerCredit]);
                 var credits = provider.getTileCredits(1, 2, 3);
                 expect(internalProvider.getTileCredits).toHaveBeenCalledWith(1, 2, 3);
@@ -181,7 +181,7 @@ defineSuite([
         var serverCredit = { text: 'Text', image: 'http://test.invalid/image', url: 'http://test.invalid/', collapsible: false };
         var provider = createTestProvider({
             type: 'IMAGERY',
-            url: 'https://test.invalid/layer',
+            url: 'http://test.invalid/layer',
             accessToken: 'not_really_a_refresh_token',
             attributions: [serverCredit]
         });
@@ -212,14 +212,14 @@ defineSuite([
         spyOn(Resource._Implementations, 'loadAndExecuteScript').and.callFake(function(url, name, deffered) {
             deffered.resolve({ resourceSets: [{ resources: [{ imageUrl: '', imageUrlSubdomains: [], zoomMax: 0 }] }] });
         });
-        return testExternalImagery('ARCGIS_MAPSERVER', { url: 'https://test.invalid' }, ArcGisMapServerImageryProvider);
+        return testExternalImagery('ARCGIS_MAPSERVER', { url: 'http://test.invalid' }, ArcGisMapServerImageryProvider);
     });
 
     it('createImageryProvider works with BING', function() {
         spyOn(Resource._Implementations, 'loadAndExecuteScript').and.callFake(function(url, name, deffered) {
             deffered.resolve({ resourceSets: [{ resources: [{ imageUrl: '', imageUrlSubdomains: [], zoomMax: 0 }] }] });
         });
-        return testExternalImagery('BING', { url: 'https://test.invalid' }, BingMapsImageryProvider);
+        return testExternalImagery('BING', { url: 'http://test.invalid' }, BingMapsImageryProvider);
     });
 
     it('createImageryProvider works with GOOGLE_EARTH', function() {
@@ -227,11 +227,11 @@ defineSuite([
             deferred.resolve(JSON.stringify({ layers: [{ id: 0, version: '' }] }));
         });
 
-        return testExternalImagery('GOOGLE_EARTH', { url: 'https://test.invalid', channel: 0 }, GoogleEarthEnterpriseMapsProvider);
+        return testExternalImagery('GOOGLE_EARTH', { url: 'http://test.invalid', channel: 0 }, GoogleEarthEnterpriseMapsProvider);
     });
 
     it('createImageryProvider works with MAPBOX', function() {
-        return testExternalImagery('MAPBOX', { url: 'https://test.invalid', mapId: 1 }, MapboxImageryProvider);
+        return testExternalImagery('MAPBOX', { url: 'http://test.invalid', mapId: 1 }, MapboxImageryProvider);
     });
 
     it('createImageryProvider works with SINGLE_TILE', function() {
@@ -239,22 +239,22 @@ defineSuite([
             deferred.resolve({});
         });
 
-        return testExternalImagery('SINGLE_TILE', { url: 'https://test.invalid' }, SingleTileImageryProvider);
+        return testExternalImagery('SINGLE_TILE', { url: 'http://test.invalid' }, SingleTileImageryProvider);
     });
 
     it('createImageryProvider works with TMS', function() {
-        return testExternalImagery('TMS', { url: 'https://test.invalid' }, UrlTemplateImageryProvider);
+        return testExternalImagery('TMS', { url: 'http://test.invalid' }, UrlTemplateImageryProvider);
     });
 
     it('createImageryProvider works with URL_TEMPLATE', function() {
-        return testExternalImagery('URL_TEMPLATE', { url: 'https://test.invalid' }, UrlTemplateImageryProvider);
+        return testExternalImagery('URL_TEMPLATE', { url: 'http://test.invalid' }, UrlTemplateImageryProvider);
     });
 
     it('createImageryProvider works with WMS', function() {
-        return testExternalImagery('WMS', { url: 'https://test.invalid', layers: [] }, WebMapServiceImageryProvider);
+        return testExternalImagery('WMS', { url: 'http://test.invalid', layers: [] }, WebMapServiceImageryProvider);
     });
 
     it('createImageryProvider works with WMTS', function() {
-        return testExternalImagery('WMTS', { url: 'https://test.invalid', layer: '', style: '', tileMatrixSetID: 1 }, WebMapTileServiceImageryProvider);
+        return testExternalImagery('WMTS', { url: 'http://test.invalid', layer: '', style: '', tileMatrixSetID: 1 }, WebMapTileServiceImageryProvider);
     });
 });

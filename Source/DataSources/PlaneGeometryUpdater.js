@@ -1,6 +1,4 @@
 define([
-        '../Core/PlaneGeometry',
-        '../Core/PlaneOutlineGeometry',
         '../Core/Cartesian2',
         '../Core/Cartesian3',
         '../Core/Check',
@@ -12,8 +10,10 @@ define([
         '../Core/GeometryInstance',
         '../Core/Iso8601',
         '../Core/Matrix4',
-        '../Core/ShowGeometryInstanceAttribute',
+        '../Core/PlaneGeometry',
+        '../Core/PlaneOutlineGeometry',
         '../Core/Quaternion',
+        '../Core/ShowGeometryInstanceAttribute',
         '../Scene/MaterialAppearance',
         '../Scene/PerInstanceColorAppearance',
         './ColorMaterialProperty',
@@ -21,8 +21,6 @@ define([
         './GeometryUpdater',
         './Property'
     ], function(
-        PlaneGeometry,
-        PlaneOutlineGeometry,
         Cartesian2,
         Cartesian3,
         Check,
@@ -34,8 +32,10 @@ define([
         GeometryInstance,
         Iso8601,
         Matrix4,
-        ShowGeometryInstanceAttribute,
+        PlaneGeometry,
+        PlaneOutlineGeometry,
         Quaternion,
+        ShowGeometryInstanceAttribute,
         MaterialAppearance,
         PerInstanceColorAppearance,
         ColorMaterialProperty,
@@ -45,6 +45,7 @@ define([
     'use strict';
 
     var positionScratch = new Cartesian3();
+    var scratchColor = new Color();
 
     function PlaneGeometryOptions(entity) {
         this.id = entity;
@@ -104,9 +105,12 @@ define([
         var distanceDisplayCondition = this._distanceDisplayConditionProperty.getValue(time);
         var distanceDisplayConditionAttribute = DistanceDisplayConditionGeometryInstanceAttribute.fromDistanceDisplayCondition(distanceDisplayCondition);
         if (this._materialProperty instanceof ColorMaterialProperty) {
-            var currentColor = Color.WHITE;
+            var currentColor;
             if (defined(this._materialProperty.color) && (this._materialProperty.color.isConstant || isAvailable)) {
-                currentColor = this._materialProperty.color.getValue(time);
+                currentColor = this._materialProperty.color.getValue(time, scratchColor);
+            }
+            if (!defined(currentColor)) {
+                currentColor = Color.WHITE;
             }
             color = ColorGeometryInstanceAttribute.fromColor(currentColor);
             attributes = {
@@ -159,7 +163,7 @@ define([
 
         var entity = this._entity;
         var isAvailable = entity.isAvailable(time);
-        var outlineColor = Property.getValueOrDefault(this._outlineColorProperty, time, Color.BLACK);
+        var outlineColor = Property.getValueOrDefault(this._outlineColorProperty, time, Color.BLACK, scratchColor);
         var distanceDisplayCondition = this._distanceDisplayConditionProperty.getValue(time);
 
         var planeGraphics = entity.plane;

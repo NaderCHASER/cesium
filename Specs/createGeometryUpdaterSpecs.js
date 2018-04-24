@@ -1,35 +1,35 @@
 define([
-    'Core/Color',
-    'Core/ColorGeometryInstanceAttribute',
-    'Core/DistanceDisplayCondition',
-    'Core/DistanceDisplayConditionGeometryInstanceAttribute',
-    'Core/JulianDate',
-    'Core/ShowGeometryInstanceAttribute',
-    'Core/TimeInterval',
-    'DataSources/ColorMaterialProperty',
-    'DataSources/ConstantProperty',
-    'DataSources/EllipsoidGeometryUpdater',
-    'DataSources/Entity',
-    'DataSources/GridMaterialProperty',
-    'DataSources/SampledProperty',
-    'DataSources/TimeIntervalCollectionProperty',
-    'Scene/ShadowMode'
-], function(
-    Color,
-    ColorGeometryInstanceAttribute,
-    DistanceDisplayCondition,
-    DistanceDisplayConditionGeometryInstanceAttribute,
-    JulianDate,
-    ShowGeometryInstanceAttribute,
-    TimeInterval,
-    ColorMaterialProperty,
-    ConstantProperty,
-    EllipsoidGeometryUpdater,
-    Entity,
-    GridMaterialProperty,
-    SampledProperty,
-    TimeIntervalCollectionProperty,
-    ShadowMode) {
+        'Core/Color',
+        'Core/ColorGeometryInstanceAttribute',
+        'Core/DistanceDisplayCondition',
+        'Core/DistanceDisplayConditionGeometryInstanceAttribute',
+        'Core/JulianDate',
+        'Core/ShowGeometryInstanceAttribute',
+        'Core/TimeInterval',
+        'DataSources/ColorMaterialProperty',
+        'DataSources/ConstantProperty',
+        'DataSources/EllipsoidGeometryUpdater',
+        'DataSources/Entity',
+        'DataSources/GridMaterialProperty',
+        'DataSources/SampledProperty',
+        'DataSources/TimeIntervalCollectionProperty',
+        'Scene/ShadowMode'
+    ], function(
+        Color,
+        ColorGeometryInstanceAttribute,
+        DistanceDisplayCondition,
+        DistanceDisplayConditionGeometryInstanceAttribute,
+        JulianDate,
+        ShowGeometryInstanceAttribute,
+        TimeInterval,
+        ColorMaterialProperty,
+        ConstantProperty,
+        EllipsoidGeometryUpdater,
+        Entity,
+        GridMaterialProperty,
+        SampledProperty,
+        TimeIntervalCollectionProperty,
+        ShadowMode) {
     'use strict';
 
     function createGeometryUpdaterSpecs(Updater, geometryPropertyName, createEntity, getScene) {
@@ -362,6 +362,60 @@ define([
             attributes = instance.attributes;
             expect(attributes.color.value).toEqual(ColorGeometryInstanceAttribute.toValue(outlineColor.getValue(time2)));
             expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(outline.getValue(time2)));
+        });
+
+        it('Works with dynamic color with missing interval', function() {
+            var time1 = new JulianDate(0, 0);
+            var time2 = new JulianDate(10, 0);
+            var missingTime = new JulianDate(15, 0);
+            var time3 = new JulianDate(20, 0);
+            var time4 = new JulianDate(30, 0);
+
+            var colorMaterial = new ColorMaterialProperty();
+
+            var color = new TimeIntervalCollectionProperty();
+            color.intervals.addInterval(new TimeInterval({
+                start : time1,
+                stop : time2,
+                data : Color.BLUE
+            }));
+            color.intervals.addInterval(new TimeInterval({
+                start : time3,
+                stop : time4,
+                isStartIncluded : false,
+                data : Color.YELLOW
+            }));
+            colorMaterial.color = color;
+
+            var outlineColor = new TimeIntervalCollectionProperty();
+            outlineColor.intervals.addInterval(new TimeInterval({
+                start : time1,
+                stop : time2,
+                data : Color.RED
+            }));
+            outlineColor.intervals.addInterval(new TimeInterval({
+                start : time3,
+                stop : time4,
+                isStartIncluded : false,
+                data : Color.GREEN
+            }));
+
+            var entity = createEntity();
+            var geometry = entity[geometryPropertyName];
+            geometry.fill = true;
+            geometry.outline = true;
+            geometry.material = colorMaterial;
+            geometry.outlineColor = outlineColor;
+
+            var updater = new Updater(entity, getScene());
+
+            var instance = updater.createFillGeometryInstance(missingTime);
+            var attributes = instance.attributes;
+            expect(attributes.color.value).toEqual(ColorGeometryInstanceAttribute.toValue(Color.WHITE));
+
+            instance = updater.createOutlineGeometryInstance(missingTime);
+            attributes = instance.attributes;
+            expect(attributes.color.value).toEqual(ColorGeometryInstanceAttribute.toValue(Color.BLACK));
         });
     }
 

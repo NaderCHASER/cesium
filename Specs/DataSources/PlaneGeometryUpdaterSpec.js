@@ -5,10 +5,10 @@ defineSuite([
         'Core/JulianDate',
         'Core/Plane',
         'Core/TimeIntervalCollection',
-        'DataSources/PlaneGraphics',
         'DataSources/ConstantPositionProperty',
         'DataSources/ConstantProperty',
         'DataSources/Entity',
+        'DataSources/PlaneGraphics',
         'Scene/PrimitiveCollection',
         'Specs/createDynamicGeometryUpdaterSpecs',
         'Specs/createDynamicProperty',
@@ -21,10 +21,10 @@ defineSuite([
         JulianDate,
         Plane,
         TimeIntervalCollection,
-        PlaneGraphics,
         ConstantPositionProperty,
         ConstantProperty,
         Entity,
+        PlaneGraphics,
         PrimitiveCollection,
         createDynamicGeometryUpdaterSpecs,
         createDynamicProperty,
@@ -117,7 +117,10 @@ defineSuite([
         expect(listener.calls.count()).toEqual(3);
     });
 
-    createGeometryUpdaterSpecs(PlaneGeometryUpdater, 'plane', createBasicPlane, createScene);
+    function getScene() {
+        return scene;
+    }
+    createGeometryUpdaterSpecs(PlaneGeometryUpdater, 'plane', createBasicPlane, getScene);
 
-    createDynamicGeometryUpdaterSpecs(PlaneGeometryUpdater, 'plane', createDynamicPlane, createScene);
+    createDynamicGeometryUpdaterSpecs(PlaneGeometryUpdater, 'plane', createDynamicPlane, getScene);
 }, 'WebGL');

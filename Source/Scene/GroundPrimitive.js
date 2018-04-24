@@ -684,7 +684,7 @@ define([
      * @exception {DeveloperError} Not all of the geometry instances have the same color attribute.
      */
     GroundPrimitive.prototype.update = function(frameState) {
-        if (!this.show || (!defined(this._primitive) && !defined(this.geometryInstances))) {
+        if (!defined(this._primitive) && !defined(this.geometryInstances)) {
             return;
         }
 
@@ -784,6 +784,7 @@ define([
             });
         }
 
+        this._primitive.show = this.show;
         this._primitive.debugShowShadowVolume = this.debugShowShadowVolume;
         this._primitive.debugShowBoundingVolume = this.debugShowBoundingVolume;
         this._primitive.update(frameState);
@@ -846,8 +847,6 @@ define([
      * <code>isDestroyed</code> will result in a {@link DeveloperError} exception.  Therefore,
      * assign the return value (<code>undefined</code>) to the object as done in the example.
      * </p>
-     *
-     * @returns {undefined}
      *
      * @exception {DeveloperError} This object was destroyed, i.e., destroy() was called.
      *
