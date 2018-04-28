@@ -284,6 +284,7 @@ define([
         this._context = context;
         this._computeEngine = new ComputeEngine(context);
         this._globe = undefined;
+        this._globes = [];
         this._primitives = new PrimitiveCollection();
         this._groundPrimitives = new PrimitiveCollection();
 
@@ -921,6 +922,18 @@ define([
                 this._globe = globe;
 
                 updateGlobeListeners(this, globe);
+            }
+        },
+
+        /**
+         * Gets a list of secondary globes to draw in addition to the main globe.
+         * @memberof Scene.prototype
+         *
+         * @type {Array}
+         */
+        globes : {
+            get: function() {
+                return this._globes;
             }
         },
 
@@ -2841,6 +2854,10 @@ define([
         if (scene._globe) {
             scene._globe.render(frameState);
         }
+
+        for (var i = 0; i < scene._globes.length; i++) {
+            scene._globes[i].render(frameState);
+        }
     }
 
     function updateAndClearFramebuffers(scene, passState, clearColor) {
@@ -3053,6 +3070,10 @@ define([
             scene.globe.update(frameState);
         }
 
+        for (var i = 0; i < scene._globes.length; i++) {
+            scene._globes[i].update(frameState);
+        }
+
         frameState.creditDisplay.update();
     }
 
@@ -3095,6 +3116,11 @@ define([
             scene.globe.beginFrame(frameState);
         }
 
+        var i = 0;
+        for (i = 0; i < scene._globes.length; i++) {
+            scene._globes[i].beginFrame(frameState);
+        }
+
         updateEnvironment(scene, passState);
         updateAndExecuteCommands(scene, passState, backgroundColor);
         resolveFramebuffers(scene, passState);
@@ -3106,6 +3132,10 @@ define([
             if (!scene.globe.tilesLoaded) {
                 scene._renderRequested = true;
             }
+        }
+
+        for (i = 0; i < scene._globes.length; i++) {
+            scene._globes[i].endFrame(frameState);
         }
 
         frameState.creditDisplay.endFrame();
@@ -3758,6 +3788,7 @@ define([
      * @see Scene#isDestroyed
      */
     Scene.prototype.destroy = function() {
+        var i;
         this._tweens.removeAll();
         this._computeEngine = this._computeEngine && this._computeEngine.destroy();
         this._screenSpaceCameraController = this._screenSpaceCameraController && this._screenSpaceCameraController.destroy();
@@ -3767,6 +3798,11 @@ define([
         this._primitives = this._primitives && this._primitives.destroy();
         this._groundPrimitives = this._groundPrimitives && this._groundPrimitives.destroy();
         this._globe = this._globe && this._globe.destroy();
+
+        for (i = 0; i < this._globes.length; ++i) {
+            this._globes[i].destroy();
+        }
+
         this.skyBox = this.skyBox && this.skyBox.destroy();
         this.skyAtmosphere = this.skyAtmosphere && this.skyAtmosphere.destroy();
         this._debugSphere = this._debugSphere && this._debugSphere.destroy();
@@ -3798,7 +3834,7 @@ define([
 
         this._removeRequestListenerCallback();
         this._removeTaskProcessorListenerCallback();
-        for (var i = 0; i < this._removeGlobeCallbacks.length; ++i) {
+        for (i = 0; i < this._removeGlobeCallbacks.length; ++i) {
             this._removeGlobeCallbacks[i]();
         }
         this._removeGlobeCallbacks.length = 0;
