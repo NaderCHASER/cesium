@@ -826,7 +826,10 @@ define([
         }
 
         return resource.getDerivedResource({
-            templateValues: templateValues
+            templateValues: templateValues,
+            headers: {
+                'Authorization': 'Bearer ' + imageryProvider._key
+            }
         });
     }
 
