@@ -242,6 +242,7 @@ define([
         this._paletteMaximum = undefined;
         this._tags = undefined;
         this._pickFeaturesTags = undefined;
+        this._key = undefined;
 
         /**
          * Gets or sets a value indicating whether feature picking is enabled.  If true, {@link CustomTemplateImageryProvider#pickFeatures} will
@@ -595,11 +596,17 @@ define([
             var allPickFeaturesTags = combine(pickFeaturesTags, customTags);
 
             var resource = Resource.createIfNeeded(properties.url, {
-                proxy: properties.proxy
+                proxy: properties.proxy,
+                headers: {
+                    'Authorization': 'Bearer ' + properties.key
+                }
             });
 
             var pickFeaturesResource = Resource.createIfNeeded(properties.pickFeaturesUrl, {
-                proxy: properties.proxy
+                proxy: properties.proxy,
+                headers: {
+                    'Authorization': 'Bearer ' + properties.key
+                }
             });
 
             that.enablePickFeatures = defaultValue(properties.enablePickFeatures, that.enablePickFeatures);
@@ -632,6 +639,7 @@ define([
             that._paletteMinimum = defaultValue(properties.paletteMinimum, 0);
             that._paletteMaximum = defaultValue(properties.paletteMaximum, 1);
             that._tileRenderer = defaultValue(properties.tileRenderer);
+            that._key = defaultValue(properties.key);
 
             var credit = properties.credit;
             if (typeof credit === 'string') {
@@ -786,7 +794,10 @@ define([
 
         return resource.getDerivedResource({
             request: request,
-            templateValues: templateValues
+            templateValues: templateValues,
+            headers: {
+                'Authorization': 'Bearer ' + imageryProvider._key
+            }
         });
     }
 
