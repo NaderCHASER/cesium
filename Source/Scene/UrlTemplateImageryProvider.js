@@ -819,9 +819,6 @@ define([
     }
 
     function zTag(imageryProvider, x, y, level) {
-        if(imageryProvider.tileWidth > 256 && (imageryProvider.tileWidth * (imageryProvider.tileWidth - 1))) {
-            level = level + ((imageryProvider.tileWidth / 256) - 1);
-        }
         return padWithZerosIfNecessary(imageryProvider, '{z}', level);
     }
 
