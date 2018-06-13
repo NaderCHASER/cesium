@@ -14,6 +14,7 @@ define([
         '../../Core/Matrix4',
         '../../Core/Rectangle',
         '../../Core/ScreenSpaceEventType',
+        '../../Core/KeyboardEventModifier',
         '../../DataSources/BoundingSphereState',
         '../../DataSources/ConstantPositionProperty',
         '../../DataSources/DataSourceCollection',
@@ -61,6 +62,7 @@ define([
         Matrix4,
         Rectangle,
         ScreenSpaceEventType,
+        KeyboardEventModifier,
         BoundingSphereState,
         ConstantPositionProperty,
         DataSourceCollection,
@@ -748,6 +750,7 @@ Either specify options.terrainProvider instead or set options.baseLayerPicker to
         }
 
         cesiumWidget.screenSpaceEventHandler.setInputAction(pickAndSelectObject, ScreenSpaceEventType.LEFT_CLICK);
+        cesiumWidget.screenSpaceEventHandler.setInputAction(pickAndSelectObject, ScreenSpaceEventType.LEFT_CLICK, Cesium.KeyboardEventModifier.CTRL);
         cesiumWidget.screenSpaceEventHandler.setInputAction(pickAndTrackObject, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
     }
 
