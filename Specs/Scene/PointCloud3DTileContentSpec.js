@@ -11,6 +11,7 @@ defineSuite([
         'Core/PerspectiveFrustum',
         'Core/Transforms',
         'Renderer/Pass',
+        'Scene/Cesium3DTileRefine',
         'Scene/Cesium3DTileStyle',
         'Scene/ClippingPlane',
         'Scene/ClippingPlaneCollection',
@@ -34,6 +35,7 @@ defineSuite([
         PerspectiveFrustum,
         Transforms,
         Pass,
+        Cesium3DTileRefine,
         Cesium3DTileStyle,
         ClippingPlane,
         ClippingPlaneCollection,
@@ -332,6 +334,7 @@ defineSuite([
     });
 
     it('renders with debug color', function() {
+        CesiumMath.setRandomNumberSeed(0);
         return Cesium3DTilesTester.loadTileset(scene, pointCloudRGBUrl).then(function(tileset) {
             var color;
             expect(scene).toRenderAndCall(function(rgba) {
@@ -517,6 +520,7 @@ defineSuite([
 
         return Cesium3DTilesTester.loadTileset(scene, pointCloudNoColorUrl).then(function(tileset) {
             tileset.pointCloudShading.eyeDomeLighting = false;
+            tileset.root.refine = Cesium3DTileRefine.REPLACE;
             postLoadCallback(scene, tileset);
             scene.destroyForSpecs();
         });
@@ -568,7 +572,7 @@ defineSuite([
             tileset.pointCloudShading.attenuation = true;
             tileset.pointCloudShading.geometricErrorScale = 1.0;
             tileset.pointCloudShading.maximumAttenuation = undefined;
-            tileset.pointCloudShading.baseResolution = CesiumMath.EPSILON20;
+            tileset.pointCloudShading.baseResolution = 0.20;
             tileset.maximumScreenSpaceError = 16;
             expect(scene).toRenderPixelCountAndCall(function(pixelCount) {
                 expect(pixelCount).toEqual(noAttenuationPixelCount);
@@ -579,9 +583,9 @@ defineSuite([
     it('modulates attenuation using the geometricErrorScale parameter', function() {
         return attenuationTest(function(scene, tileset) {
             tileset.pointCloudShading.attenuation = true;
-            tileset.pointCloudShading.geometricErrorScale = 0.0;
+            tileset.pointCloudShading.geometricErrorScale = 0.2;
             tileset.pointCloudShading.maximumAttenuation = undefined;
-            tileset.pointCloudShading.baseResolution = undefined;
+            tileset.pointCloudShading.baseResolution = 1.0;
             tileset.maximumScreenSpaceError = 1;
             expect(scene).toRenderPixelCountAndCall(function(pixelCount) {
                 expect(pixelCount).toEqual(noAttenuationPixelCount);
@@ -719,7 +723,9 @@ defineSuite([
 
             tileset.style.color = new Expression('color("blue", 0.5)');
             tileset.makeStyleDirty();
-            expect(scene).toRender([0, 0, 255, 255]);
+            expect(scene).toRenderAndCall(function(rgba) {
+                expect(rgba).toEqualEpsilon([0, 0, 255, 255], 5);
+            });
 
             var i;
             var commands = scene.frameState.commandList;
@@ -934,8 +940,7 @@ defineSuite([
             tileset.clippingPlanes = new ClippingPlaneCollection({
                 planes : [
                     clipPlane
-                ],
-                modelMatrix : Transforms.eastNorthUpToFixedFrame(tileset.boundingSphere.center)
+                ]
             });
 
             expect(scene).notToRender(color);

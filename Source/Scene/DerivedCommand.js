@@ -289,6 +289,12 @@ define([
         if (!defined(pickState)) {
             var rs = RenderState.getState(renderState);
             rs.blending.enabled = false;
+
+            // Turns on depth writing for opaque and translucent passes
+            // Overlapping translucent geometry on the globe surface may exhibit z-fighting
+            // during the pick pass which may not match the rendered scene. Once
+            // terrain is on by default and ground primitives are used instead
+            // this will become less of a problem.
             rs.depthMask = true;
 
             pickState = RenderState.fromCache(rs);
@@ -319,6 +325,50 @@ define([
         } else {
             result.pickCommand.shaderProgram = shader;
             result.pickCommand.renderState = renderState;
+        }
+
+        return result;
+    };
+
+    function getHdrShaderProgram(context, shaderProgram) {
+        var shader = context.shaderCache.getDerivedShaderProgram(shaderProgram, 'HDR');
+        if (!defined(shader)) {
+            var attributeLocations = shaderProgram._attributeLocations;
+            var vs = shaderProgram.vertexShaderSource.clone();
+            var fs = shaderProgram.fragmentShaderSource.clone();
+
+            vs.defines = defined(vs.defines) ? vs.defines.slice(0) : [];
+            vs.defines.push('HDR');
+            fs.defines = defined(fs.defines) ? fs.defines.slice(0) : [];
+            fs.defines.push('HDR');
+
+            shader = context.shaderCache.createDerivedShaderProgram(shaderProgram, 'HDR', {
+                vertexShaderSource : vs,
+                fragmentShaderSource : fs,
+                attributeLocations : attributeLocations
+            });
+        }
+
+        return shader;
+    }
+
+    DerivedCommand.createHdrCommand = function(command, context, result) {
+        if (!defined(result)) {
+            result = {};
+        }
+
+        var shader;
+        if (defined(result.command)) {
+            shader = result.command.shaderProgram;
+        }
+
+        result.command = DrawCommand.shallowClone(command, result.command);
+
+        if (!defined(shader) || result.shaderProgramId !== command.shaderProgram.id) {
+            result.command.shaderProgram = getHdrShaderProgram(context, command.shaderProgram);
+            result.shaderProgramId = command.shaderProgram.id;
+        } else {
+            result.command.shaderProgram = shader;
         }
 
         return result;

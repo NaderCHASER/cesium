@@ -752,6 +752,8 @@ Either specify options.terrainProvider instead or set options.baseLayerPicker to
                 } else {
                     that.zoomTo(entity);
                 }
+            } else if (defined(that.trackedEntity)) {
+                that.trackedEntity = undefined;
             }
         }
 
@@ -1288,7 +1290,7 @@ Either specify options.terrainProvider instead or set options.baseLayerPicker to
             }
         },
         /**
-         * Gets the event that is raised when the selected entity chages
+         * Gets the event that is raised when the selected entity changes.
          * @memberof Viewer.prototype
          * @type {Event}
          * @readonly
@@ -1299,7 +1301,7 @@ Either specify options.terrainProvider instead or set options.baseLayerPicker to
             }
         },
         /**
-         * Gets the event that is raised when the tracked entity chages
+         * Gets the event that is raised when the tracked entity changes.
          * @memberof Viewer.prototype
          * @type {Event}
          * @readonly
@@ -1985,14 +1987,9 @@ Either specify options.terrainProvider instead or set options.baseLayerPicker to
         }
 
         // If zoomTarget was an ImageryLayer
-        var isCartographic = target instanceof Cartographic;
-        if (target instanceof Rectangle || isCartographic) {
-            var destination = target;
-            if (isCartographic) {
-                destination = scene.mapProjection.ellipsoid.cartographicToCartesian(destination);
-            }
+        if (target instanceof Cartographic) {
             options = {
-                destination : destination,
+                destination : scene.mapProjection.ellipsoid.cartographicToCartesian(target),
                 duration : zoomOptions.duration,
                 maximumHeight : zoomOptions.maximumHeight,
                 complete : function() {

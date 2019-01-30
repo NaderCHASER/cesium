@@ -23,11 +23,11 @@ define([
         '../ThirdParty/when',
         './GlobeSurfaceShaderSet',
         './GlobeSurfaceTileProvider',
-        './ImagerySplitDirection',
         './ImageryLayerCollection',
         './QuadtreePrimitive',
         './SceneMode',
-        './ShadowMode'
+        './ShadowMode',
+        './TileSelectionResult'
     ], function(
         BoundingSphere,
         buildModuleUrl,
@@ -53,11 +53,11 @@ define([
         when,
         GlobeSurfaceShaderSet,
         GlobeSurfaceTileProvider,
-        ImagerySplitDirection,
         ImageryLayerCollection,
         QuadtreePrimitive,
         SceneMode,
-        ShadowMode) {
+        ShadowMode,
+        TileSelectionResult) {
     'use strict';
 
     /**
@@ -133,27 +133,55 @@ define([
          * Enable lighting the globe with the sun as a light source.
          *
          * @type {Boolean}
-         * @default false
+         * @default true
          */
         this.enableLighting = false;
 
         /**
+         * Enable the ground atmosphere, which is drawn over the globe when viewed from a distance between <code>lightingFadeInDistance</code> and <code>lightingFadeOutDistance</code>.
+         *
+         * @demo {@link https://cesiumjs.org/Cesium/Apps/Sandcastle/index.html?src=Ground%20Atmosphere.html|Ground atmosphere demo in Sandcastle}
+         *
+         * @type {Boolean}
+         * @default true
+         */
+        this.showGroundAtmosphere = true;
+
+        /**
          * The distance where everything becomes lit. This only takes effect
-         * when <code>enableLighting</code> is <code>true</code>.
+         * when <code>enableLighting</code> or <code>showGroundAtmosphere</code> is <code>true</code>.
          *
          * @type {Number}
-         * @default 6500000.0
+         * @default 10000000.0
          */
-        this.lightingFadeOutDistance = 6500000.0;
+        this.lightingFadeOutDistance = 1.0e7;
 
         /**
          * The distance where lighting resumes. This only takes effect
-         * when <code>enableLighting</code> is <code>true</code>.
+         * when <code>enableLighting</code> or <code>showGroundAtmosphere</code> is <code>true</code>.
          *
          * @type {Number}
-         * @default 9000000.0
+         * @default 20000000.0
          */
-        this.lightingFadeInDistance = 9000000.0;
+        this.lightingFadeInDistance = 2.0e7;
+
+        /**
+         * The distance where the darkness of night from the ground atmosphere fades out to a lit ground atmosphere.
+         * This only takes effect when <code>showGroundAtmosphere</code> and <code>enableLighting</code> are <code>true</code>.
+         *
+         * @type {Number}
+         * @default 10000000.0
+         */
+        this.nightFadeOutDistance = 1.0e7;
+
+        /**
+         * The distance where the darkness of night from the ground atmosphere fades in to an unlit ground atmosphere.
+         * This only takes effect when <code>showGroundAtmosphere</code> and <code>enableLighting</code> are <code>true</code>.
+         *
+         * @type {Number}
+         * @default 50000000.0
+         */
+        this.nightFadeInDistance = 5.0e7;
 
         /**
          * True if an animated wave effect should be shown in areas of the globe
@@ -188,10 +216,32 @@ define([
          */
         this.shadows = ShadowMode.RECEIVE_ONLY;
 
-        this._oceanNormalMap = undefined;
-        this._zoomedOutOceanSpecularIntensity = 0.5;
+        /**
+         * The hue shift to apply to the atmosphere. Defaults to 0.0 (no shift).
+         * A hue shift of 1.0 indicates a complete rotation of the hues available.
+         * @type {Number}
+         * @default 0.0
+         */
+        this.atmosphereHueShift = 0.0;
 
-        this.splitDirection = ImagerySplitDirection.NONE;
+        /**
+         * The saturation shift to apply to the atmosphere. Defaults to 0.0 (no shift).
+         * A saturation shift of -1.0 is monochrome.
+         * @type {Number}
+         * @default 0.0
+         */
+        this.atmosphereSaturationShift = 0.0;
+
+        /**
+         * The brightness shift to apply to the atmosphere. Defaults to 0.0 (no shift).
+         * A brightness shift of -1.0 is complete darkness, which will let space show through.
+         * @type {Number}
+         * @default 0.0
+         */
+        this.atmosphereBrightnessShift = 0.0;
+
+        this._oceanNormalMap = undefined;
+        this._zoomedOutOceanSpecularIntensity = undefined;
     }
 
     defineProperties(Globe.prototype, {
@@ -225,18 +275,6 @@ define([
         imageryLayersUpdatedEvent : {
             get : function() {
                 return this._surface.tileProvider.imageryLayersUpdatedEvent;
-            }
-        },
-        /**
-         * Gets an event that's raised when a surface tile is loaded and ready to be rendered.
-         *
-         * @memberof Globe.prototype
-         * @type {Event}
-         * @readonly
-         */
-        tileLoadedEvent : {
-            get : function() {
-                return this._surface.tileProvider.tileLoadedEvent;
             }
         },
         /**
@@ -281,11 +319,22 @@ define([
                 this._surface.tileProvider.clippingPlanes = value;
             }
         },
+        /**
+         * A property specifying a {@link Rectangle} used to limit globe rendering to a cartographic area.
+         * Defaults to the maximum extent of cartographic coordinates.
+         *
+         * @member Globe.prototype
+         * @type {Rectangle}
+         * @default Rectangle.MAX_VALUE
+         */
         cartographicLimitRectangle : {
             get : function() {
                 return this._surface.tileProvider.cartographicLimitRectangle;
             },
             set : function(value) {
+                if (!defined(value)) {
+                    value = Rectangle.clone(Rectangle.MAX_VALUE);
+                }
                 this._surface.tileProvider.cartographicLimitRectangle = value;
             }
         },
@@ -376,7 +425,7 @@ define([
 
         var requireNormals = defined(globe._material) && (globe._material.shaderSource.match(/slope/) || globe._material.shaderSource.match('normalEC'));
 
-        var fragmentSources = [];
+        var fragmentSources = [GroundAtmosphere];
         if (defined(globe._material) && (!requireNormals || globe._terrainProvider.requestVertexNormals)) {
             fragmentSources.push(globe._material.shaderSource);
             defines.push('APPLY_MATERIAL');
@@ -447,23 +496,26 @@ define([
 
         for (i = 0; i < length; ++i) {
             tile = tilesToRender[i];
-            var tileData = tile.data;
+            var surfaceTile = tile.data;
 
-            if (!defined(tileData)) {
+            if (!defined(surfaceTile)) {
                 continue;
             }
 
-            var boundingVolume = tileData.pickBoundingSphere;
+            var boundingVolume = surfaceTile.pickBoundingSphere;
             if (mode !== SceneMode.SCENE3D) {
-                BoundingSphere.fromRectangleWithHeights2D(tile.rectangle, projection, tileData.minimumHeight, tileData.maximumHeight, boundingVolume);
+                surfaceTile.pickBoundingSphere = boundingVolume = BoundingSphere.fromRectangleWithHeights2D(tile.rectangle, projection, surfaceTile.tileBoundingRegion.minimumHeight, surfaceTile.tileBoundingRegion.maximumHeight, boundingVolume);
                 Cartesian3.fromElements(boundingVolume.center.z, boundingVolume.center.x, boundingVolume.center.y, boundingVolume.center);
+            } else if (defined(surfaceTile.renderedMesh)) {
+                BoundingSphere.clone(surfaceTile.renderedMesh.boundingSphere3D, boundingVolume);
             } else {
-                BoundingSphere.clone(tileData.boundingSphere3D, boundingVolume);
+                // So wait how did we render this thing then? It shouldn't be possible to get here.
+                continue;
             }
 
             var boundingSphereIntersection = IntersectionTests.raySphere(ray, boundingVolume, scratchSphereIntersectionResult);
             if (defined(boundingSphereIntersection)) {
-                sphereIntersections.push(tileData);
+                sphereIntersections.push(surfaceTile);
             }
         }
 
@@ -544,22 +596,24 @@ define([
             }
         }
 
-        if (!defined(tile) || !Rectangle.contains(tile.rectangle, cartographic)) {
+        if (i >= length) {
             return undefined;
         }
 
-        while (tile.renderable) {
+        while (tile._lastSelectionResult === TileSelectionResult.REFINED) {
             tile = tileIfContainsCartographic(tile.southwestChild, cartographic) ||
                    tileIfContainsCartographic(tile.southeastChild, cartographic) ||
                    tileIfContainsCartographic(tile.northwestChild, cartographic) ||
                    tile.northeastChild;
         }
 
-        while (defined(tile) && (!defined(tile.data) || !defined(tile.data.pickTerrain))) {
-            tile = tile.parent;
-        }
-
-        if (!defined(tile)) {
+        // This tile was either rendered or culled.
+        // It is sometimes useful to get a height from a culled tile,
+        // e.g. when we're getting a height in order to place a billboard
+        // on terrain, and the camera is looking at that same billboard.
+        // The culled tile must have a valid mesh, though.
+        if (!defined(tile.data) || !defined(tile.data.renderedMesh)) {
+            // Tile was not rendered (culled).
             return undefined;
         }
 
@@ -579,7 +633,7 @@ define([
         if (!defined(rayOrigin)) {
             // intersection point is outside the ellipsoid, try other value
             // minimum height (-11500.0) for the terrain set, need to get this information from the terrain provider
-            var magnitude = Math.min(defaultValue(tile.data.minimumHeight, 0.0),-11500.0);
+            var magnitude = Math.min(defaultValue(tile.data.minimumHeight, 0.0), -11500.0);
 
             // multiply by the *positive* value of the magnitude
             var vectorToMinimumPoint = Cartesian3.multiplyByScalar(surfaceNormal, Math.abs(magnitude) + 1, scratchGetHeightIntersection);
@@ -591,7 +645,14 @@ define([
             return undefined;
         }
 
-        return ellipsoid.cartesianToCartographic(intersection, scratchGetHeightCartographic).height;
+        var height = ellipsoid.cartesianToCartographic(intersection, scratchGetHeightCartographic).height;
+
+        // For low-detail tiles, large triangles often cut the the globe and appear to be at a much
+        // lower height than actually makes any sense. So clamp the height to the actual height range
+        // of the tile.
+        height = Math.max(height, tile.data.tileBoundingRegion.minimumHeight);
+        height = Math.min(height, tile.data.tileBoundingRegion.maximumHeight);
+        return height;
     };
 
     /**
@@ -644,11 +705,10 @@ define([
         var mode = frameState.mode;
 
         if (pass.render) {
-            // Don't show the ocean specular highlights when zoomed out in 2D and Columbus View.
-            if (mode === SceneMode.SCENE3D) {
-                this._zoomedOutOceanSpecularIntensity = 0.5;
+            if (this.showGroundAtmosphere) {
+                this._zoomedOutOceanSpecularIntensity = 0.4;
             } else {
-                this._zoomedOutOceanSpecularIntensity = 0.0;
+                this._zoomedOutOceanSpecularIntensity = 0.5;
             }
 
             surface.maximumScreenSpaceError = this.maximumScreenSpaceError;
@@ -657,12 +717,17 @@ define([
             tileProvider.terrainProvider = this.terrainProvider;
             tileProvider.lightingFadeOutDistance = this.lightingFadeOutDistance;
             tileProvider.lightingFadeInDistance = this.lightingFadeInDistance;
-            tileProvider.zoomedOutOceanSpecularIntensity = this._zoomedOutOceanSpecularIntensity;
+            tileProvider.nightFadeOutDistance = this.nightFadeOutDistance;
+            tileProvider.nightFadeInDistance = this.nightFadeInDistance;
+            tileProvider.zoomedOutOceanSpecularIntensity = mode === SceneMode.SCENE3D ? this._zoomedOutOceanSpecularIntensity : 0.0;
             tileProvider.hasWaterMask = hasWaterMask;
             tileProvider.oceanNormalMap = this._oceanNormalMap;
             tileProvider.enableLighting = this.enableLighting;
+            tileProvider.showGroundAtmosphere = this.showGroundAtmosphere;
             tileProvider.shadows = this.shadows;
-            tileProvider.splitDirection = this.splitDirection;
+            tileProvider.hueShift = this.atmosphereHueShift;
+            tileProvider.saturationShift = this.atmosphereSaturationShift;
+            tileProvider.brightnessShift = this.atmosphereBrightnessShift;
 
             surface.beginFrame(frameState);
         }
