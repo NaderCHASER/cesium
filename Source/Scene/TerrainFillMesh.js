@@ -4,6 +4,7 @@ define([
         '../Core/BoundingSphere',
         '../Core/Cartesian2',
         '../Core/Cartesian3',
+        '../Core/Cartesian4',
         '../Core/Cartographic',
         '../Core/defined',
         '../Core/HeightmapTerrainData',
@@ -24,6 +25,7 @@ define([
         BoundingSphere,
         Cartesian2,
         Cartesian3,
+        Cartesian4,
         Cartographic,
         defined,
         HeightmapTerrainData,
@@ -64,6 +66,8 @@ define([
         this.enqueuedFrame = undefined;
         this.mesh = undefined;
         this.vertexArray = undefined;
+        this.waterMaskTexture = undefined;
+        this.waterMaskTranslationAndScale = new Cartesian4();
     }
 
     TerrainFillMesh.prototype.update = function(tileProvider, frameState, vertexArraysToDestroy) {
@@ -82,6 +86,15 @@ define([
             }
             this.vertexArray = undefined;
         }
+
+        if (defined(this.waterMaskTexture)) {
+            --this.waterMaskTexture.referenceCount;
+            if (this.waterMaskTexture.referenceCount === 0) {
+                this.waterMaskTexture.destroy();
+            }
+            this.waterMaskTexture = undefined;
+        }
+
         return undefined;
     };
 
@@ -459,6 +472,11 @@ define([
         return vertex;
     }
 
+    var heightRangeScratch = {
+        minimumHeight: 0.0,
+        maximumHeight: 0.0
+    };
+
     var swVertexScratch = new HeightAndNormal();
     var seVertexScratch = new HeightAndNormal();
     var nwVertexScratch = new HeightAndNormal();
@@ -527,7 +545,7 @@ define([
             });
             fill.mesh = terrainData._createMeshSync(tile.tilingScheme, tile.x, tile.y, tile.level, 1.0);
         } else {
-            var encoding = new TerrainEncoding(undefined, minimumHeight, maximumHeight, undefined, true, true);
+            var encoding = new TerrainEncoding(undefined, undefined, undefined, undefined, true, true);
 
             var centerCartographic = centerCartographicScratch;
             centerCartographic.longitude = (rectangle.east + rectangle.west) * 0.5;
@@ -562,27 +580,33 @@ define([
                 maxVertexCount += meshes[i].southIndicesEastToWest.length;
             }
 
+            var heightRange = heightRangeScratch;
+            heightRange.minimumHeight = minimumHeight;
+            heightRange.maximumHeight = maximumHeight;
+
             var stride = encoding.getStride();
             var typedArray = new Float32Array(maxVertexCount * stride);
 
             var nextIndex = 0;
             var northwestIndex = nextIndex;
-            nextIndex = addVertexWithComputedPosition(ellipsoid, rectangle, encoding, typedArray, nextIndex, 0.0, 1.0, nwCorner.height, nwCorner.encodedNormal, 1.0);
-            nextIndex = addEdge(fill, ellipsoid, encoding, typedArray, nextIndex, fill.westTiles, fill.westMeshes, TileEdge.EAST);
+            nextIndex = addVertexWithComputedPosition(ellipsoid, rectangle, encoding, typedArray, nextIndex, 0.0, 1.0, nwCorner.height, nwCorner.encodedNormal, 1.0, heightRange);
+            nextIndex = addEdge(fill, ellipsoid, encoding, typedArray, nextIndex, fill.westTiles, fill.westMeshes, TileEdge.EAST, heightRange);
             var southwestIndex = nextIndex;
-            nextIndex = addVertexWithComputedPosition(ellipsoid, rectangle, encoding, typedArray, nextIndex, 0.0, 0.0, swCorner.height, swCorner.encodedNormal, 0.0);
-            nextIndex = addEdge(fill, ellipsoid, encoding, typedArray, nextIndex, fill.southTiles, fill.southMeshes, TileEdge.NORTH);
+            nextIndex = addVertexWithComputedPosition(ellipsoid, rectangle, encoding, typedArray, nextIndex, 0.0, 0.0, swCorner.height, swCorner.encodedNormal, 0.0, heightRange);
+            nextIndex = addEdge(fill, ellipsoid, encoding, typedArray, nextIndex, fill.southTiles, fill.southMeshes, TileEdge.NORTH, heightRange);
             var southeastIndex = nextIndex;
-            nextIndex = addVertexWithComputedPosition(ellipsoid, rectangle, encoding, typedArray, nextIndex, 1.0, 0.0, seCorner.height, seCorner.encodedNormal, 0.0);
-            nextIndex = addEdge(fill, ellipsoid, encoding, typedArray, nextIndex, fill.eastTiles, fill.eastMeshes, TileEdge.WEST);
+            nextIndex = addVertexWithComputedPosition(ellipsoid, rectangle, encoding, typedArray, nextIndex, 1.0, 0.0, seCorner.height, seCorner.encodedNormal, 0.0, heightRange);
+            nextIndex = addEdge(fill, ellipsoid, encoding, typedArray, nextIndex, fill.eastTiles, fill.eastMeshes, TileEdge.WEST, heightRange);
             var northeastIndex = nextIndex;
-            nextIndex = addVertexWithComputedPosition(ellipsoid, rectangle, encoding, typedArray, nextIndex, 1.0, 1.0, neCorner.height, neCorner.encodedNormal, 1.0);
-            nextIndex = addEdge(fill, ellipsoid, encoding, typedArray, nextIndex, fill.northTiles, fill.northMeshes, TileEdge.SOUTH);
+            nextIndex = addVertexWithComputedPosition(ellipsoid, rectangle, encoding, typedArray, nextIndex, 1.0, 1.0, neCorner.height, neCorner.encodedNormal, 1.0, heightRange);
+            nextIndex = addEdge(fill, ellipsoid, encoding, typedArray, nextIndex, fill.northTiles, fill.northMeshes, TileEdge.SOUTH, heightRange);
 
-            // Add a single vertex at the center of the tile.
-            // TODO: minimumHeight and maximumHeight only reflect the corners
+            minimumHeight = heightRange.minimumHeight;
+            maximumHeight = heightRange.maximumHeight;
+
             var obb = OrientedBoundingBox.fromRectangle(rectangle, minimumHeight, maximumHeight, tile.tilingScheme.ellipsoid);
 
+            // Add a single vertex at the center of the tile.
             var southMercatorY = WebMercatorProjection.geodeticLatitudeToMercatorAngle(rectangle.south);
             var oneOverMercatorHeight = 1.0 / (WebMercatorProjection.geodeticLatitudeToMercatorAngle(rectangle.north) - southMercatorY);
             var centerWebMercatorT = (WebMercatorProjection.geodeticLatitudeToMercatorAngle(centerCartographic.latitude) - southMercatorY) * oneOverMercatorHeight;
@@ -678,9 +702,27 @@ define([
 
         fill.vertexArray = GlobeSurfaceTile._createVertexArrayForMesh(context, fill.mesh);
         surfaceTile.processImagery(tile, tileProvider.terrainProvider, frameState, true);
+
+        var oldTexture = fill.waterMaskTexture;
+
+        if (tileProvider.terrainProvider.hasWaterMask) {
+            var waterSourceTile = surfaceTile._findAncestorTileWithTerrainData(tile);
+            if (defined(waterSourceTile) && defined(waterSourceTile.data.waterMaskTexture)) {
+                fill.waterMaskTexture = waterSourceTile.data.waterMaskTexture;
+                ++fill.waterMaskTexture.referenceCount;
+                surfaceTile._computeWaterMaskTranslationAndScale(tile, waterSourceTile, fill.waterMaskTranslationAndScale);
+            }
+        }
+
+        if (defined(oldTexture)) {
+            --oldTexture.referenceCount;
+            if (oldTexture.referenceCount === 0) {
+                oldTexture.destroy();
+            }
+        }
     }
 
-    function addVertexWithComputedPosition(ellipsoid, rectangle, encoding, buffer, index, u, v, height, encodedNormal, webMercatorT) {
+    function addVertexWithComputedPosition(ellipsoid, rectangle, encoding, buffer, index, u, v, height, encodedNormal, webMercatorT, heightRange) {
         var cartographic = cartographicScratch;
         cartographic.longitude = CesiumMath.lerp(rectangle.west, rectangle.east, u);
         cartographic.latitude = CesiumMath.lerp(rectangle.south, rectangle.north, v);
@@ -692,6 +734,9 @@ define([
         uv.y = v;
 
         encoding.encode(buffer, index * encoding.getStride(), position, uv, height, encodedNormal, webMercatorT);
+
+        heightRange.minimumHeight = Math.min(heightRange.minimumHeight, height);
+        heightRange.maximumHeight = Math.max(heightRange.maximumHeight, height);
 
         return index + 1;
     }
@@ -794,8 +839,6 @@ define([
             Cartesian3.normalize(normal, normal);
             AttributeCompression.octEncode(normal, vertex.encodedNormal);
         } else {
-            // TODO: do we need to actually compute a normal?
-            // It's probably going to be unused so 0,0 is just as good.
             normal = ellipsoid.geodeticSurfaceNormalCartographic(cartographicScratch, cartesianScratch);
             AttributeCompression.octEncode(normal, vertex.encodedNormal);
         }
@@ -906,14 +949,14 @@ define([
         return height2;
     }
 
-    function addEdge(terrainFillMesh, ellipsoid, encoding, typedArray, nextIndex, edgeTiles, edgeMeshes, tileEdge) {
+    function addEdge(terrainFillMesh, ellipsoid, encoding, typedArray, nextIndex, edgeTiles, edgeMeshes, tileEdge, heightRange) {
         for (var i = 0; i < edgeTiles.length; ++i) {
-            nextIndex = addEdgeMesh(terrainFillMesh, ellipsoid, encoding, typedArray, nextIndex, edgeTiles[i], edgeMeshes[i], tileEdge);
+            nextIndex = addEdgeMesh(terrainFillMesh, ellipsoid, encoding, typedArray, nextIndex, edgeTiles[i], edgeMeshes[i], tileEdge, heightRange);
         }
         return nextIndex;
     }
 
-    function addEdgeMesh(terrainFillMesh, ellipsoid, encoding, typedArray, nextIndex, edgeTile, edgeMesh, tileEdge) {
+    function addEdgeMesh(terrainFillMesh, ellipsoid, encoding, typedArray, nextIndex, edgeTile, edgeMesh, tileEdge, heightRange) {
         // Handle copying edges across the anti-meridian.
         var sourceRectangle = edgeTile.rectangle;
         if (tileEdge === TileEdge.EAST && terrainFillMesh.tile.x === 0) {
@@ -1018,6 +1061,9 @@ define([
             }
 
             encoding.encode(typedArray, nextIndex * targetStride, position, uv, height, normal, webMercatorT);
+
+            heightRange.minimumHeight = Math.min(heightRange.minimumHeight, height);
+            heightRange.maximumHeight = Math.max(heightRange.maximumHeight, height);
 
             ++nextIndex;
         }

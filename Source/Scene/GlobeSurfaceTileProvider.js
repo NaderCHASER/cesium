@@ -529,13 +529,9 @@ define([
         var surfaceTile = tile.data;
         var terrainOnly = true;
         var terrainStateBefore;
-        var hadFillBefore = false;
-        var hadVertexArrayBefore = false;
         if (defined(surfaceTile)) {
-            terrainOnly = surfaceTile.boundingVolumeSourceTile !== tile;
+            terrainOnly = surfaceTile.boundingVolumeSourceTile !== tile || tile._lastSelectionResult === TileSelectionResult.CULLED_BUT_NEEDED;
             terrainStateBefore = surfaceTile.terrainState;
-            hadFillBefore = defined(surfaceTile.fill);
-            hadVertexArrayBefore = defined(surfaceTile.vertexArray);
         }
 
         GlobeSurfaceTile.processStateMachine(tile, frameState, this.terrainProvider, this._imageryLayers, this._vertexArraysToDestroy, terrainOnly);
@@ -550,16 +546,6 @@ define([
                 terrainOnly = false;
                 GlobeSurfaceTile.processStateMachine(tile, frameState, this.terrainProvider, this._imageryLayers, this._vertexArraysToDestroy, terrainOnly);
             }
-        }
-
-        if (hadFillBefore && !defined(surfaceTile.fill)) {
-            // Transitioned from a fill to real geometry, so we'll need to update the heights
-            // of things in this tile.
-            this._quadtree._tileToUpdateHeights.push(tile);
-        } else if (tile._lastSelectionResult === TileSelectionResult.CULLED_BUT_NEEDED && !hadVertexArrayBefore && defined(surfaceTile.vertexArray)) {
-            // This tile is not being rendered but IS used for getting heights, and it just acquired some geometry.
-            // So we need to update the heights based on the new geometry.
-            this._quadtree._tileToUpdateHeights.push(tile);
         }
     };
 
@@ -803,7 +789,12 @@ define([
 
         var cameraPosition = frameState.camera.positionWC;
         var cameraDirection = frameState.camera.directionWC;
-        var tileDirection = Cartesian3.normalize(Cartesian3.subtract(obb.center, cameraPosition, tileDirectionScratch), tileDirectionScratch);
+        var tileDirection = Cartesian3.subtract(obb.center, cameraPosition, tileDirectionScratch);
+        var magnitude = Cartesian3.magnitude(tileDirection);
+        if (magnitude < CesiumMath.EPSILON5) {
+            return 0.0;
+        }
+        Cartesian3.divideByScalar(tileDirection, magnitude, tileDirection);
         return (1.0 - Cartesian3.dot(tileDirection, cameraDirection)) * tile._distance;
     };
 
@@ -823,9 +814,8 @@ define([
      *
      * @param {QuadtreeTile} tile The tile instance.
      * @param {FrameState} frameState The state information of the current rendering frame.
-     * @param {QuadtreeTile} [nearestRenderableTile] The nearest ancestor tile that is renderable.
      */
-    GlobeSurfaceTileProvider.prototype.showTileThisFrame = function(tile, frameState, nearestRenderableTile) {
+    GlobeSurfaceTileProvider.prototype.showTileThisFrame = function(tile, frameState) {
         var readyTextureCount = 0;
         var tileImageryCollection = tile.data.imagery;
         for (var i = 0, len = tileImageryCollection.length; i < len; ++i) {
@@ -844,17 +834,10 @@ define([
         tileSet.push(tile);
 
         var surfaceTile = tile.data;
-        if (nearestRenderableTile !== undefined && nearestRenderableTile !== tile) {
+        if (!defined(surfaceTile.vertexArray)) {
             this._hasFillTilesThisFrame = true;
-
-            surfaceTile.renderableTile = nearestRenderableTile;
-
-            // The renderable tile may have previously deferred to an ancestor.
-            // But we know it's renderable now, so mark it as such.
-            nearestRenderableTile.data.renderableTile = undefined;
         } else {
             this._hasLoadedTilesThisFrame = true;
-            surfaceTile.renderableTile = undefined;
         }
 
         var debug = this._debug;
@@ -1545,7 +1528,7 @@ define([
     function addDrawCommandsForTile(tileProvider, tile, frameState) {
         var surfaceTile = tile.data;
 
-        if (surfaceTile.renderableTile !== undefined) {
+        if (!defined(surfaceTile.vertexArray)) {
             if (surfaceTile.fill === undefined) {
                 // No fill was created for this tile, probably because this tile is not connected to
                 // any renderable tiles. So create a simple tile in the middle of the tile's possible
@@ -1569,6 +1552,12 @@ define([
         var maxTextures = ContextLimits.maximumTextureImageUnits;
 
         var waterMaskTexture = surfaceTile.waterMaskTexture;
+        var waterMaskTranslationAndScale = surfaceTile.waterMaskTranslationAndScale;
+        if (!defined(waterMaskTexture) && defined(surfaceTile.fill)) {
+            waterMaskTexture = surfaceTile.fill.waterMaskTexture;
+            waterMaskTranslationAndScale = surfaceTile.fill.waterMaskTranslationAndScale;
+        }
+
         var showReflectiveOcean = tileProvider.hasWaterMask && defined(waterMaskTexture);
         var oceanNormalMap = tileProvider.oceanNormalMap;
         var showOceanWaves = showReflectiveOcean && defined(oceanNormalMap);
@@ -1882,7 +1871,7 @@ define([
             // which might get destroyed eventually
             uniformMapProperties.dayTextures.length = numberOfDayTextures;
             uniformMapProperties.waterMask = waterMaskTexture;
-            Cartesian4.clone(surfaceTile.waterMaskTranslationAndScale, uniformMapProperties.waterMaskTranslationAndScale);
+            Cartesian4.clone(waterMaskTranslationAndScale, uniformMapProperties.waterMaskTranslationAndScale);
 
             uniformMapProperties.minMaxHeight.x = encoding.minimumHeight;
             uniformMapProperties.minMaxHeight.y = encoding.maximumHeight;
