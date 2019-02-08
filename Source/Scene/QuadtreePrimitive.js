@@ -117,11 +117,12 @@ define([
         this._lastTileIndex = 0;
         this._updateHeightsTimeSlice = 2.0;
 
-        // If a culled tile contains a cartographic positions in this list, it will be marked
+        // If a culled tile contains _cameraPositionCartographic or _cameraReferenceFrameOriginCartographic, it will be marked
         // TileSelectionResult.CULLED_BUT_NEEDED and added to the list of tiles to update heights,
-        // even though it is not rendered. The first position will be the position of the
-        // camera and the second will be the origin of the camera's reference frame.
-        this._neededPositions = [undefined, undefined];
+        // even though it is not rendered.
+        // These are updated each frame in `selectTilesForRendering`.
+        this._cameraPositionCartographic = undefined;
+        this._cameraReferenceFrameOriginCartographic = undefined;
 
         /**
          * Gets or sets the maximum screen-space error, in pixels, that is allowed.
@@ -169,6 +170,8 @@ define([
          * Setting this to true causes tiles with the same parent as a rendered tile to be loaded, even
          * if they are culled. Setting this to true may provide a better panning experience at the
          * cost of loading more tiles.
+         * @type {Boolean}
+         * @default false
          */
         this.preloadSiblings = false;
 
@@ -563,9 +566,10 @@ define([
         }
 
         var camera = frameState.camera;
-        primitive._neededPositions[0] = camera.positionCartographic;
+
+        primitive._cameraPositionCartographic = camera.positionCartographic;
         var cameraFrameOrigin = Matrix4.getTranslation(camera.transform, cameraOriginScratch);
-        primitive._neededPositions[1] = primitive.tileProvider.tilingScheme.ellipsoid.cartesianToCartographic(cameraFrameOrigin, primitive._neededPositions[1]);
+        primitive._cameraReferenceFrameOriginCartographic = primitive.tileProvider.tilingScheme.ellipsoid.cartesianToCartographic(cameraFrameOrigin, primitive._cameraReferenceFrameOriginCartographic);
 
         // Traverse in depth-first, near-to-far order.
         for (i = 0, len = levelZeroTiles.length; i < len; ++i) {
@@ -593,9 +597,43 @@ define([
         queue.push(tile);
     }
 
+    /**
+     * Tracks details of traversing a tile while selecting tiles for rendering.
+     * @alias TraversalDetails
+     * @constructor
+     * @private
+     */
     function TraversalDetails() {
+        /**
+         * True if all selected (i.e. not culled or refined) tiles in this tile's subtree
+         * are renderable. If the subtree is renderable, we'll render it; no drama.
+         */
         this.allAreRenderable = true;
+
+        /**
+         * True if any tiles in this tile's subtree were rendered last frame. If any
+         * were, we must render the subtree rather than this tile, because rendering
+         * this tile would cause detail to vanish that was visible last frame, and
+         * that's no good.
+         */
         this.anyWereRenderedLastFrame = false;
+
+        /**
+         * Counts the number of selected tiles in this tile's subtree that are
+         * not yet ready to be rendered because they need more loading. Note that
+         * this value will _not_ necessarily be zero when
+         * {@link TraversalDetails#allAreRenderable} is true, for subtle reasons.
+         * When {@link TraversalDetails#allAreRenderable} and
+         * {@link TraversalDetails#anyWereRenderedLastFrame} are both false, we
+         * will render this tile instead of any tiles in its subtree and
+         * the `allAreRenderable` value for this tile will reflect only whether _this_
+         * tile is renderable. The `notYetRenderableCount` value, however, will still
+         * reflect the total number of tiles that we are waiting on, including the
+         * ones that we're not rendering. `notYetRenderableCount` is only reset
+         * when a subtree is removed from the render queue because the
+         * `notYetRenderableCount` exceeds the
+         * {@link QuadtreePrimitive#loadingDescendantLimit}.
+         */
         this.notYetRenderableCount = 0;
     }
 
@@ -898,17 +936,9 @@ define([
     }
 
     function containsNeededPosition(primitive, tile) {
-        var needed = primitive._neededPositions;
         var rectangle = tile.rectangle;
-
-        for (var i = 0, len = needed.length; i < len; ++i) {
-            var position = needed[i];
-            if (defined(position) && Rectangle.contains(rectangle, position)) {
-                return true;
-            }
-        }
-
-        return false;
+        return (defined(primitive._cameraPositionCartographic) && Rectangle.contains(rectangle, primitive._cameraPositionCartographic)) ||
+               (defined(primitive._cameraReferenceFrameOriginCartographic) && Rectangle.contains(rectangle, primitive._cameraReferenceFrameOriginCartographic));
     }
 
     function visitIfVisible(primitive, tile, tileProvider, frameState, occluders, ancestorMeetsSse, traversalDetails) {
@@ -1009,28 +1039,28 @@ define([
         var endTime = getTimestamp() + primitive._loadQueueTimeSlice;
         var tileProvider = primitive._tileProvider;
 
-        var didSomething = processSinglePriorityLoadQueue(primitive, frameState, tileProvider, endTime, tileLoadQueueHigh, false);
-        didSomething = processSinglePriorityLoadQueue(primitive, frameState, tileProvider, endTime, tileLoadQueueMedium, didSomething);
-        processSinglePriorityLoadQueue(primitive, frameState, tileProvider, endTime, tileLoadQueueLow, didSomething);
+        var didSomeLoading = processSinglePriorityLoadQueue(primitive, frameState, tileProvider, endTime, tileLoadQueueHigh, false);
+        didSomeLoading = processSinglePriorityLoadQueue(primitive, frameState, tileProvider, endTime, tileLoadQueueMedium, didSomeLoading);
+        processSinglePriorityLoadQueue(primitive, frameState, tileProvider, endTime, tileLoadQueueLow, didSomeLoading);
     }
 
     function sortByLoadPriority(a, b) {
         return a._loadPriority - b._loadPriority;
     }
 
-    function processSinglePriorityLoadQueue(primitive, frameState, tileProvider, endTime, loadQueue, didSomething) {
+    function processSinglePriorityLoadQueue(primitive, frameState, tileProvider, endTime, loadQueue, didSomeLoading) {
         if (tileProvider.computeTileLoadPriority !== undefined) {
             loadQueue.sort(sortByLoadPriority);
         }
 
-        for (var i = 0, len = loadQueue.length; i < len && (getTimestamp() < endTime || !didSomething); ++i) {
+        for (var i = 0, len = loadQueue.length; i < len && (getTimestamp() < endTime || !didSomeLoading); ++i) {
             var tile = loadQueue[i];
             primitive._tileReplacementQueue.markTileRendered(tile);
             tileProvider.loadTile(frameState, tile);
-            didSomething = true;
+            didSomeLoading = true;
         }
 
-        return didSomething;
+        return didSomeLoading;
     }
 
     var scratchRay = new Ray();
