@@ -28,7 +28,6 @@ var Karma = require('karma');
 var yargs = require('yargs');
 var AWS = require('aws-sdk');
 var mime = require('mime');
-var compressible = require('compressible');
 
 var packageJson = require('./package.json');
 var version = packageJson.version;
@@ -105,7 +104,7 @@ gulp.task('build', function(done) {
 });
 
 gulp.task('build-watch', function() {
-    return gulp.watch(buildFiles, 'build');
+    return gulp.watch(buildFiles, gulp.series('build'));
 });
 
 gulp.task('buildApps', function() {
@@ -123,7 +122,7 @@ gulp.task('clean', function(done) {
 });
 
 gulp.task('requirejs', function(done) {
-    var config = JSON.parse(new Buffer(process.argv[3].substring(2), 'base64').toString('utf8'));
+    var config = JSON.parse(Buffer.from(process.argv[3].substring(2), 'base64').toString('utf8'));
 
     // Disable module load timeout
     config.waitSeconds = 0;
@@ -424,14 +423,24 @@ function deployCesium(bucketName, uploadDirectory, cacheControl, done) {
                 var mimeLookup = getMimeType(blobName);
                 var contentType = mimeLookup.type;
                 var compress = mimeLookup.compress;
-                var contentEncoding = compress || mimeLookup.isCompressed ? 'gzip' : undefined;
+                var contentEncoding = compress ? 'gzip' : undefined;
                 var etag;
 
                 totalFiles++;
 
                 return readFile(file)
                 .then(function(content) {
-                    return compress ? gzip(content) : content;
+                    if (!compress) {
+                        return content;
+                    }
+
+                    var alreadyCompressed = (content[0] === 0x1f) && (content[1] === 0x8b);
+                    if (alreadyCompressed) {
+                        console.log('Skipping compressing already compressed file: ' + file);
+                        return content;
+                    }
+
+                    return gzip(content);
                 })
                 .then(function(content) {
                     // compute hash and etag
@@ -547,24 +556,38 @@ function deployCesium(bucketName, uploadDirectory, cacheControl, done) {
 }
 
 function getMimeType(filename) {
-    var ext = path.extname(filename);
-    if (ext === '.bin' || ext === '.terrain') {
-        return {type : 'application/octet-stream', compress : true, isCompressed : false};
-    } else if (ext === '.md' || ext === '.glsl') {
-        return {type : 'text/plain', compress : true, isCompressed : false};
-    } else if (ext === '.czml' || ext === '.geojson' || ext === '.json') {
-        return {type : 'application/json', compress : true, isCompressed : false};
-    } else if (ext === '.js') {
-        return {type : 'application/javascript', compress : true, isCompressed : false};
-    } else if (ext === '.svg') {
-        return {type : 'image/svg+xml', compress : true, isCompressed : false};
-    } else if (ext === '.woff') {
-        return {type : 'application/font-woff', compress : false, isCompressed : false};
+    var mimeType = mime.getType(filename);
+    if (mimeType) {
+        //Compress everything except zipfiles, binary images, and video
+        var compress = !/^(image\/|video\/|application\/zip|application\/gzip)/i.test(mimeType);
+        if (mimeType === 'image/svg+xml') {
+            compress = true;
+        }
+        return { type: mimeType, compress: compress };
     }
 
-    var mimeType = mime.getType(filename);
-    var compress = compressible(mimeType);
-    return {type : mimeType, compress : compress, isCompressed : false};
+    //Non-standard mime types not handled by mime
+    if (/\.(glsl|LICENSE|config|state)$/i.test(filename)) {
+        return { type: 'text/plain', compress: true };
+    } else if (/\.(czml|topojson)$/i.test(filename)) {
+        return { type: 'application/json', compress: true };
+    } else if (/\.(crn|tgz)$/i.test(filename)) {
+        return { type: 'application/octet-stream', compress: false };
+    }
+
+    // Handle dotfiles, such as .jshintrc
+    var baseName = path.basename(filename);
+    if (baseName[0] === '.' || baseName.indexOf('.') === -1) {
+        return { type: 'text/plain', compress: true };
+    }
+
+    // Everything else can be octet-stream compressed but print a warning
+    // if we introduce a type we aren't specifically handling.
+    if (!/\.(terrain|b3dm|geom|pnts|vctr|cmpt|i3dm|metadata)$/i.test(filename)) {
+        console.log('Unknown mime type for ' + filename);
+    }
+
+    return { type: 'application/octet-stream', compress: true };
 }
 
 // get all files currently in bucket asynchronously
@@ -1197,7 +1220,7 @@ var has_new_gallery_demos = ' + (newDemos.length > 0 ? 'true;' : 'false;') + '\n
     }, function() {
         var data = fs.readFileSync(outputFile); //read existing contents into data
         var fd = fs.openSync(outputFile, 'w+');
-        var buffer = new Buffer('/* This file is automatically rebuilt by the Cesium build process. */\n');
+        var buffer = Buffer.from('/* This file is automatically rebuilt by the Cesium build process. */\n');
 
         fs.writeSync(fd, buffer, 0, buffer.length, 0); //write new data
         fs.writeSync(fd, data, 0, data.length, buffer.length); //append old data
@@ -1348,7 +1371,7 @@ function requirejsOptimize(name, config) {
         console.log('Building ' + name);
     }
     return new Promise(function(resolve, reject) {
-        var cmd = 'npm run requirejs -- --' + new Buffer(JSON.stringify(config)).toString('base64') + ' --silent';
+        var cmd = 'npm run requirejs -- --' + Buffer.from(JSON.stringify(config)).toString('base64') + ' --silent';
         child_process.exec(cmd, function(e) {
             if (e) {
                 console.log('Error ' + name);

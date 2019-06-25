@@ -90,10 +90,12 @@ defineSuite([
     var texturedBoxCRNEmbeddedUrl = './Data/Models/Box-Textured-CRN-Embedded/CesiumTexturedBoxTest.gltf';
     var texturedBoxCustomUrl = './Data/Models/Box-Textured-Custom/CesiumTexturedBoxTest.gltf';
     var texturedBoxKhrBinaryUrl = './Data/Models/Box-Textured-Binary/CesiumTexturedBoxTest.glb';
+    var texturedBoxTextureTransformUrl = './Data/Models/Box-Texture-Transform/CesiumTexturedBoxTest.gltf';
     var texturedBoxWebpUrl = './Data/Models/Box-Textured-Webp/CesiumBoxWebp.gltf';
     var boxRtcUrl = './Data/Models/Box-RTC/Box.gltf';
     var boxEcefUrl = './Data/Models/Box-ECEF/ecef.gltf';
     var boxWithUnusedMaterial = './Data/Models/BoxWithUnusedMaterial/Box.gltf';
+    var boxArticulationsUrl = './Data/Models/Box-Articulations/Box-Articulations.gltf';
 
     var cesiumAirUrl = './Data/Models/CesiumAir/Cesium_Air.gltf';
     var cesiumAir_0_8Url = './Data/Models/CesiumAir/Cesium_Air_0_8.gltf';
@@ -137,6 +139,8 @@ defineSuite([
     var dracoCompressedModelUrl = './Data/Models/DracoCompression/CesiumMilkTruck/CesiumMilkTruck.gltf';
     var dracoCompressedModelWithAnimationUrl = './Data/Models/DracoCompression/CesiumMan/CesiumMan.gltf';
     var dracoCompressedModelWithLinesUrl = './Data/Models/DracoCompression/BoxWithLines/BoxWithLines.gltf';
+    var dracoBoxVertexColorsRGBUrl = './Data/Models/DracoCompression/BoxVertexColorsDracoRGB.gltf';
+    var dracoBoxVertexColorsRGBAUrl = './Data/Models/DracoCompression/BoxVertexColorsDracoRGBA.gltf';
 
     var boxGltf2Url = './Data/Models/Box-Gltf-2/Box.gltf';
     var boxGltf2WithTechniquesUrl = './Data/Models/Box-Gltf-2-Techniques/Box.gltf';
@@ -172,6 +176,7 @@ defineSuite([
         modelPromises.push(loadModel(riggedFigureUrl).then(function(model) {
             riggedFigureModel = model;
         }));
+        modelPromises.push(FeatureDetection.supportsWebP.initialize());
 
         return when.all(modelPromises);
     });
@@ -978,7 +983,8 @@ defineSuite([
     });
 
     it('Throws for EXT_texture_webp if browser does not support WebP', function() {
-        spyOn(FeatureDetection, 'supportsWebPSync').and.returnValue(false);
+        var supportsWebP = FeatureDetection.supportsWebP._result;
+        FeatureDetection.supportsWebP._result = false;
         return Resource.fetchJson(texturedBoxWebpUrl).then(function(gltf) {
             gltf.extensionsRequired = ['EXT_texture_webp'];
             var model = primitives.add(new Model({
@@ -989,6 +995,7 @@ defineSuite([
                 scene.renderForSpecs();
             }).toThrowRuntimeError();
             primitives.remove(model);
+            FeatureDetection.supportsWebP._result = supportsWebP;
         });
     });
 
@@ -1031,6 +1038,38 @@ defineSuite([
             verifyRender(m);
             m.show = true;
             expect(scene).toRender([204, 0, 0, 255]); // Red
+            primitives.remove(m);
+        });
+    });
+
+    it('loads a glTF 2.0 model with AGI_articulations extension', function() {
+        return loadModel(boxArticulationsUrl).then(function(m) {
+            verifyRender(m);
+
+            m.setArticulationStage('SampleArticulation MoveX', 1.0);
+            m.setArticulationStage('SampleArticulation MoveY', 2.0);
+            m.setArticulationStage('SampleArticulation MoveZ', 3.0);
+            m.setArticulationStage('SampleArticulation Yaw', 4.0);
+            m.setArticulationStage('SampleArticulation Pitch', 5.0);
+            m.setArticulationStage('SampleArticulation Roll', 6.0);
+            m.setArticulationStage('SampleArticulation Size', 0.9);
+            m.setArticulationStage('SampleArticulation SizeX', 0.8);
+            m.setArticulationStage('SampleArticulation SizeY', 0.7);
+            m.setArticulationStage('SampleArticulation SizeZ', 0.6);
+            m.applyArticulations();
+
+            var node = m.getNode('Root');
+            expect(node.useMatrix).toBe(true);
+
+            var expected = [
+                0.7147690483240505, -0.04340611926232735, -0.0749741046529782, 0,
+                -0.06188330295778636, 0.05906797312763484, -0.6241645867602773, 0,
+                0.03752515582279579, 0.5366347296529127, 0.04706410108373541, 0,
+                1, 3, -2, 1
+            ];
+
+            expect(node.matrix).toEqualEpsilon(expected, CesiumMath.EPSILON14);
+
             primitives.remove(m);
         });
     });
@@ -1203,7 +1242,20 @@ defineSuite([
         });
     });
 
+    it('renders textured box with KHR_texture_transform extension', function() {
+        return loadModel(texturedBoxTextureTransformUrl, {
+            incrementallyLoadTextures : false
+        }).then(function(m) {
+            verifyRender(m);
+            expect(Object.keys(m._rendererResources.textures).length).toBe(1);
+            primitives.remove(m);
+        });
+    });
+
     it('renders textured box with WebP texture', function() {
+        if (!FeatureDetection.supportsWebP()) {
+            return;
+        }
         return loadModel(texturedBoxWebpUrl, {
             incrementallyLoadTextures : false
         }).then(function(m) {
@@ -2680,6 +2732,20 @@ defineSuite([
             expect(atrributeData['NORMAL'].quantization).toBeDefined();
             expect(atrributeData['JOINTS_0'].quantization).toBeUndefined();
 
+            primitives.remove(m);
+        });
+    });
+
+    it('loads draco compressed glTF with RGBA per-vertex color', function() {
+        return loadModel(dracoBoxVertexColorsRGBAUrl).then(function(m) {
+            verifyRender(m);
+            primitives.remove(m);
+        });
+    });
+
+    it('loads draco compressed glTF with RGB per-vertex color', function() {
+        return loadModel(dracoBoxVertexColorsRGBUrl).then(function(m) {
+            verifyRender(m);
             primitives.remove(m);
         });
     });
