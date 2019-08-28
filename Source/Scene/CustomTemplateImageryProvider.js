@@ -2,6 +2,7 @@ define([
         '../Core/Cartesian2',
         '../Core/Cartesian3',
         '../Core/Cartographic',
+        '../Core/Check',
         '../Core/clone',
         '../Core/combine',
         '../Core/Credit',
@@ -23,6 +24,7 @@ define([
         Cartesian2,
         Cartesian3,
         Cartographic,
+        Check,
         clone,
         combine,
         Credit,
@@ -686,7 +688,7 @@ define([
             throw new DeveloperError('requestImage must not be called before the imagery provider is ready.');
         }
         //>>includeEnd('debug');
-        var imagePromise = ImageryProvider.loadImage(this, buildImageResource(this, x, y, level, request));
+        var imagePromise = loadImage(this, buildImageResource(this, x, y, level, request));
 
         if(!defined(imagePromise)) {
             return imagePromise;
@@ -1018,6 +1020,39 @@ define([
     function formatTag(imageryProvider, x, y, level, longitude, latitude, format) {
         return format;
     }
+
+    /**
+     * Loads an image from a given URL.  If the server referenced by the URL already has
+     * too many requests pending, this function will instead return undefined, indicating
+     * that the request should be retried later.
+     *
+     * @param {ImageryProvider} imageryProvider The imagery provider for the URL.
+     * @param {Resource|String} url The URL of the image.
+     * @returns {Promise.<Image|Canvas>|undefined} A promise for the image that will resolve when the image is available, or
+     *          undefined if there are too many active requests to the server, and the request
+     *          should be retried later.  The resolved image may be either an
+     *          Image or a Canvas DOM object.
+     */
+     function loadImage(imageryProvider, url) {
+        //>>includeStart('debug', pragmas.debug);
+        Check.defined('url', url);
+        //>>includeEnd('debug');
+
+        var resource = Resource.createIfNeeded(url);
+
+        if (defined(imageryProvider) && defined(imageryProvider.tileDiscardPolicy)) {
+            return resource.fetchImage({
+                preferBlob : true,
+                preferImageBitmap : true,
+                flipY : true
+            });
+        }
+
+        return resource.fetchImage({
+            preferImageBitmap : true,
+            flipY : false
+        });
+    };
 
     return CustomTemplateImageryProvider;
 });
