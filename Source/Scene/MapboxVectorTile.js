@@ -1,46 +1,22 @@
- /*global define*/
- define([
-         '../Core/Cartesian2',
-         '../Core/Cartesian3',
-         '../Core/Cartographic',
-         '../Core/combine',
-         '../Core/Credit',
-         '../Core/defaultValue',
-         '../Core/defined',
-         '../Core/defineProperties',
-         '../Core/DeveloperError',
-         '../Core/Event',
-         '../Core/freezeObject',
-         '../Core/GeographicTilingScheme',
-         '../Core/isArray',
-         '../Core/Math',
-         '../Core/Rectangle',
-         '../Core/Resource',
-         '../Core/WebMercatorTilingScheme',
-         '../ThirdParty/when',
-         './TileReplacementQueue'
-     ], function(
-         Cartesian2,
-         Cartesian3,
-         Cartographic,
-         combine,
-         Credit,
-         defaultValue,
-         defined,
-         defineProperties,
-         DeveloperError,
-         Event,
-         freezeObject,
-         GeographicTilingScheme,
-         isArray,
-         CesiumMath,
-         Rectangle,
-         Resource,
-         WebMercatorTilingScheme,
-         when,
-         TileReplacementQueue
-     ) {
-     'use strict';
+import Cartesian2 from '../Core/Cartesian2.js';
+import Cartesian3 from '../Core/Cartesian3.js';
+import Cartographic from '../Core/Cartographic.js';
+import combine from '../Core/combine.js';
+import Credit from '../Core/Credit.js';
+import defaultValue from '../Core/defaultValue.js';
+import defined from '../Core/defined.js';
+import defineProperties from '../Core/defineProperties.js';
+import DeveloperError from '../Core/DeveloperError.js';
+import Event from '../Core/Event.js';
+import freezeObject from '../Core/freezeObject.js';
+import GeographicTilingScheme from '../Core/GeographicTilingScheme.js';
+import isArray from '../Core/isArray.js';
+import CesiumMath from '../Core/Math.js';
+import Rectangle from '../Core/Rectangle.js';
+import Resource from '../Core/Resource.js';
+import WebMercatorTilingScheme from '../Core/WebMercatorTilingScheme.js';
+import when from '../ThirdParty/when.js';
+import TileReplacementQueue from './TileReplacementQueue.js';
 
     function MapboxVectorTile(options) {
         //>>includeStart('debug', pragmas.debug);
@@ -308,5 +284,4 @@
         return undefined;
     };
 
-    return MapboxVectorTile;
-});
+export default MapboxVectorTile;

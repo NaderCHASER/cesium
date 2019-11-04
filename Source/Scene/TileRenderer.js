@@ -1,14 +1,6 @@
-/*global define*/
-define([
-        '../Renderer/Texture',
-        '../Shaders/TileVS',
-        '../Shaders/TileFS'
-    ], function(
-        Texture,
-        vertShader,
-        fragShader
-    ) {
-    'use strict';
+import Texture from '../Renderer/Texture.js';
+import vertShader from '../Shaders/TileVS.js';
+import fragShader from '../Shaders/TileFS.js';
 
     function TileRenderer(options) {
         this._canvas = document.createElement('canvas');
@@ -518,5 +510,4 @@ define([
         return clonedCanvas;
     };
 
-    return TileRenderer;
-});
+export default TileRenderer;
