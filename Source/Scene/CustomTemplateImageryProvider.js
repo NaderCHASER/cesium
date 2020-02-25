@@ -13,7 +13,7 @@ import DeveloperError from '../Core/DeveloperError.js';
 import Event from '../Core/Event.js';
 import GeographicTilingScheme from '../Core/GeographicTilingScheme.js';
 import isArray from '../Core/isArray.js';
-import CesiuMath from '../Core/Math.js';
+import CesiumMath from '../Core/Math.js';
 import Rectangle from '../Core/Rectangle.js';
 import Resource from '../Core/Resource.js';
 import WebMercatorTilingScheme from '../Core/WebMercatorTilingScheme.js';
