@@ -83,26 +83,10 @@ vec4 addScreenSpaceOffset(vec4 positionEC, vec2 imageSize, float scale, vec2 dir
     }
 #endif
 
-    if (sizeInMeters)
-    {
-        positionEC.xy += halfSize;
-    }
-
     mpp = czm_metersPerPixel(positionEC);
+    positionEC.xy += (originTranslate + halfSize) * czm_branchFreeTernary(sizeInMeters, 1.0, mpp);
+    positionEC.xy += (translate + pixelOffset) * mpp;
 
-    if (!sizeInMeters)
-    {
-        originTranslate *= mpp;
-    }
-
-    positionEC.xy += originTranslate;
-    if (!sizeInMeters)
-    {
-        positionEC.xy += halfSize * mpp;
-    }
-
-    positionEC.xy += translate * mpp;
-    positionEC.xy += pixelOffset * mpp;
     return positionEC;
 }
 
@@ -377,7 +361,7 @@ if (lengthSq < disableDepthTestDistance) {
             // Position z on the near plane.
             gl_Position.z = -gl_Position.w;
 #ifdef LOG_DEPTH
-            czm_vertexLogDepth(vec4(czm_currentFrustum.x));
+            v_depthFromNearPlusOne = 1.0;
 #endif
         }
     }

@@ -16,6 +16,10 @@ import LabelStyle from './LabelStyle.js';
 import SDFSettings from './SDFSettings.js';
 import VerticalOrigin from './VerticalOrigin.js';
 
+    var fontInfoCache = {};
+    var fontInfoCacheLength = 0;
+    var fontInfoCacheMaxSize = 256;
+
     var textTypes = freezeObject({
         LTR : 0,
         RTL : 1,
@@ -44,18 +48,31 @@ import VerticalOrigin from './VerticalOrigin.js';
     }
 
     function parseFont(label) {
-        var div = document.createElement('div');
-        div.style.position = 'absolute';
-        div.style.opacity = 0;
-        div.style.font = label._font;
-        document.body.appendChild(div);
+        var fontInfo = fontInfoCache[label._font];
+        if (!defined(fontInfo)) {
+            var div = document.createElement('div');
+            div.style.position = 'absolute';
+            div.style.opacity = 0;
+            div.style.font = label._font;
+            document.body.appendChild(div);
 
-        label._fontFamily = getCSSValue(div,'font-family');
-        label._fontSize = getCSSValue(div,'font-size').replace('px', '');
-        label._fontStyle = getCSSValue(div,'font-style');
-        label._fontWeight = getCSSValue(div,'font-weight');
+            fontInfo = {
+                family : getCSSValue(div, 'font-family'),
+                size : getCSSValue(div, 'font-size').replace('px', ''),
+                style : getCSSValue(div, 'font-style'),
+                weight : getCSSValue(div, 'font-weight')
+            };
 
-        document.body.removeChild(div);
+            document.body.removeChild(div);
+            if (fontInfoCacheLength < fontInfoCacheMaxSize) {
+                fontInfoCache[label._font] = fontInfo;
+                fontInfoCacheLength++;
+            }
+        }
+        label._fontFamily = fontInfo.family;
+        label._fontSize = fontInfo.size;
+        label._fontStyle = fontInfo.style;
+        label._fontWeight = fontInfo.weight;
     }
 
     /**
@@ -1133,12 +1150,11 @@ import VerticalOrigin from './VerticalOrigin.js';
         var width = 0;
         var height = 0;
         var scale = label.totalScale;
-        var resolutionScale = label._labelCollection._resolutionScale;
 
         var backgroundBillboard = label._backgroundBillboard;
         if (defined(backgroundBillboard)) {
-            x = screenSpacePosition.x + (backgroundBillboard._translate.x / resolutionScale);
-            y = screenSpacePosition.y - (backgroundBillboard._translate.y / resolutionScale);
+            x = screenSpacePosition.x + (backgroundBillboard._translate.x);
+            y = screenSpacePosition.y - (backgroundBillboard._translate.y);
             width = backgroundBillboard.width * scale;
             height = backgroundBillboard.height * scale;
 
@@ -1161,8 +1177,8 @@ import VerticalOrigin from './VerticalOrigin.js';
                     continue;
                 }
 
-                var glyphX = screenSpacePosition.x + (billboard._translate.x / resolutionScale);
-                var glyphY = screenSpacePosition.y - (billboard._translate.y / resolutionScale);
+                var glyphX = screenSpacePosition.x + (billboard._translate.x);
+                var glyphY = screenSpacePosition.y - (billboard._translate.y);
                 var glyphWidth = glyph.dimensions.width * scale;
                 var glyphHeight = glyph.dimensions.height * scale;
 
