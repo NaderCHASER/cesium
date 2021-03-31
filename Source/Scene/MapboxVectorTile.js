@@ -5,14 +5,9 @@ import combine from '../Core/combine.js';
 import Credit from '../Core/Credit.js';
 import defaultValue from '../Core/defaultValue.js';
 import defined from '../Core/defined.js';
-import defineProperties from '../Core/defineProperties.js';
 import DeveloperError from '../Core/DeveloperError.js';
 import Event from '../Core/Event.js';
-import freezeObject from '../Core/freezeObject.js';
-import GeographicTilingScheme from '../Core/GeographicTilingScheme.js';
-import isArray from '../Core/isArray.js';
 import CesiumMath from '../Core/Math.js';
-import Rectangle from '../Core/Rectangle.js';
 import Resource from '../Core/Resource.js';
 import WebMercatorTilingScheme from '../Core/WebMercatorTilingScheme.js';
 import when from '../ThirdParty/when.js';
@@ -49,7 +44,7 @@ import TileReplacementQueue from './TileReplacementQueue.js';
         this.reinitialize(options);
     }
 
-    defineProperties(MapboxVectorTile.prototype, {
+    Object.defineProperties(MapboxVectorTile.prototype, {
         proxy : {
             get : function() {
                 return undefined;
@@ -155,7 +150,7 @@ import TileReplacementQueue from './TileReplacementQueue.js';
             that._url = defaultValue(options.url, '//tiles.pixels.global/maptile/data/v3/{z}/{x}/{y}.pbf');
 
             that._subdomains = properties.subdomains;
-            if (isArray(that._subdomains)) {
+            if (Array.isArray(that._subdomains)) {
                 that._subdomains = that._subdomains.slice();
             } else if (defined(that._subdomains) && that._subdomains.length > 0) {
                 that._subdomains = that._subdomains.split('');
